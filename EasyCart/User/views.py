@@ -49,15 +49,19 @@ def getclient(request):
         return Response(str(e),status=status.HTTP_400_BAD_REQUEST)
 
 
+# username = request.GET.get('username')
+# password = request.GET.get('password')
 @csrf_exempt
-@api_view(['GET','POST','DELETE'])
+@api_view(['GET','POST','DELETE',"OPTIONS"])
 def register(request):
+    # print(request.method)
     try:
         #User Log in
         if request.method == "GET":
-            # print(request.data)
-            username = request.data.get('username')
-            password = request.data.get('password')
+            # print(request.GET)
+            username = request.GET.get('username')
+            password = request.GET.get('password')
+
             if '@' in username:
                 user_obj = get_object_or_404(client, clientEmail=username)
             else:
@@ -72,6 +76,7 @@ def register(request):
                     'clientLastName':user_obj.clientLastName,
                     'clientImage':user_obj.clientImage.url,
                 }
+                print("done")
                 return Response(clintdata, status=status.HTTP_200_OK)
             elif check_password(password, user_obj.clientPassword)==False:
                 return Response({'error': 'Wrong password'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -108,8 +113,10 @@ def register(request):
 @api_view(['GET', 'PUT', 'DELETE'])
 def userdetail(request, clientUserName):
     try:
+
+        print(request.headers.get('Authorization'))
         # Get the authenticated user using the token
-        token_key = request.data.get('Authorization')
+        token_key = request.headers.get('Authorization')
         if not token_key:
             return Response({"error": "Token is required"}, status=status.HTTP_401_UNAUTHORIZED)
         token = get_object_or_404(ClientToken, key=token_key)
@@ -152,6 +159,68 @@ def userdetail(request, clientUserName):
             return Response({"message": "Client deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+#
+# @csrf_exempt
+# @api_view(['GET', 'POST', 'DELETE', 'OPTIONS'])
+# def register(request):
+#     try:
+#         # User Log in
+#         if request.method == 'GET' or request.method == 'OPTIONS':
+#             username = request.GET.get('username')
+#             password = request.GET.get('password')
+#             print(username, password)
+#
+#             if not username or not password:
+#                 return Response({'error': 'اسم المستخدم وكلمة المرور مطلوبين.'}, status=status.HTTP_400_BAD_REQUEST)
+#
+#             user_obj = get_object_or_404(client, clientEmail=username) if '@' in username else get_object_or_404(client, clientUserName=username)
+#
+#             if check_password(password, user_obj.clientPassword):
+#                 token_key = str(uuid.uuid4())
+#                 token = ClientToken.objects.create(user=user_obj, key=token_key)
+#
+#                 clintdata = {
+#                     'Authorization': token.key,
+#                     'clientUserName': user_obj.clientUserName,
+#                     'clientFirstName': user_obj.clientFirstName,
+#                     'clientLastName': user_obj.clientLastName,
+#                     'clientImage': f'http://127.0.0.1:8000{user_obj.clientImage.url}',
+#                 }
+#                 return Response(clintdata, status=status.HTTP_200_OK)
+#
+#             return Response({'error': 'كلمة المرور غير صحيحة.'}, status=status.HTTP_401_UNAUTHORIZED)
+#
+#         # User register
+#         elif request.method == 'POST':
+#             serializer = NewClientSerializer(data=request.data)
+#             if serializer.is_valid():
+#                 serializer.save()
+#                 return Response(
+#                     {
+#                         'message': 'Registration Successfully',
+#                         'data': serializer.data
+#                     },
+#                     status=status.HTTP_201_CREATED
+#                 )
+#             else:
+#                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#
+#         # User LogOut
+#         elif request.method == 'DELETE':
+#             token_key = request.data.get('Authorization')
+#             if not token_key:
+#                 return Response({'error': 'التوكن مطلوب.'}, status=status.HTTP_400_BAD_REQUEST)
+#
+#             token = get_object_or_404(ClientToken, key=token_key)
+#             token.delete()
+#             return Response({'message': 'تم تسجيل الخروج بنجاح.'}, status=status.HTTP_200_OK)
+#
+#     except Exception as e:
+#         print(e)
+#         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#
+
 @csrf_exempt
 @api_view(['GET', 'PUT'])
 def adminGetUserDetail(request, clientUserName):
