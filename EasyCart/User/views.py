@@ -51,17 +51,16 @@ def getclient(request):
 
 # username = request.GET.get('username')
 # password = request.GET.get('password')
+
+
 @csrf_exempt
-@api_view(['GET','POST','DELETE',"OPTIONS"])
-def register(request):
-    # print(request.method)
+@api_view(['POST'])
+def login(request):
     try:
         #User Log in
-        if request.method == "GET":
-            # print(request.GET)
-            username = request.GET.get('username')
-            password = request.GET.get('password')
-
+        if request.method == "POST":
+            username = request.data.get('username')
+            password = request.data.get('password')
             if '@' in username:
                 user_obj = get_object_or_404(client, clientEmail=username)
             else:
@@ -76,13 +75,21 @@ def register(request):
                     'clientLastName':user_obj.clientLastName,
                     'clientImage':user_obj.clientImage.url,
                 }
-                print("done")
                 return Response(clintdata, status=status.HTTP_200_OK)
             elif check_password(password, user_obj.clientPassword)==False:
                 return Response({'error': 'Wrong password'}, status=status.HTTP_401_UNAUTHORIZED)
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+    except Exception as e:
+        return Response(str(e),status=status.HTTP_400_BAD_REQUEST)
+
+
+@csrf_exempt
+@api_view(['GET','POST','DELETE',"OPTIONS"])
+def register(request):
+    # print(request.method)
+    try:
         #User register
-        elif request.method =="POST":
+        if request.method =="POST":
             serializer = NewClientSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
@@ -114,7 +121,7 @@ def register(request):
 def userdetail(request, clientUserName):
     try:
 
-        print(request.headers.get('Authorization'))
+        # print(request.headers.get('Authorization'))
         # Get the authenticated user using the token
         token_key = request.headers.get('Authorization')
         if not token_key:

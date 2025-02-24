@@ -68,17 +68,21 @@ def productdetails(request, QRNumber):
         return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
     try:
         if request.method == 'GET':
-            if request.data.get('Authorization'):
-                token_key = request.data.get('Authorization')
+            # print(request.headers.get('Authorization'))
+            if request.headers.get('Authorization'):
+                token_key = request.headers.get('Authorization')
+                # print(token_key)
                 try:
                     token = ClientToken.objects.get(key=token_key)
                     client_user = token.user
+                    # print(client_user)
                     threading.Thread(target=update_views, args=(product, client_user)).start()
                 except ClientToken.DoesNotExist:
                     print("DoesNotExist")
                     pass
             serializer = ProductSerializer(product)
             if serializer:
+                # print("done+1")
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -325,7 +329,7 @@ def getAllProductRates(request,QRNumber):
 def getAllClientRates(request,clientUserName):
     try:
         if request.method == 'GET':
-            token_key = request.data.get('Authorization')
+            token_key = request.headers.get('Authorization')
             if not token_key:
                 return Response({"error": "Token is required"}, status=status.HTTP_401_UNAUTHORIZED)
             token = get_object_or_404(ClientToken, key=token_key)
@@ -354,6 +358,7 @@ from django.db import transaction
 # But on condition that a minute passes for each customer since the last visit to the product in order for the visit to be counted.
 
 def update_views(product, client_user):
+    # print("in update_views")
     try:
         last_view = View.objects.filter(
             ProductName=product,
@@ -368,6 +373,7 @@ def update_views(product, client_user):
             product.save(update_fields=['NumberOfViews'])
             last_view.LastView = now()
             last_view.save(update_fields=['ViewNumber', 'LastView'])
+            # print("new view")
         else:
             with transaction.atomic():
                 product.NumberOfViews = F('NumberOfViews') + 1
@@ -378,6 +384,7 @@ def update_views(product, client_user):
                 LastView=now(),
                 ViewNumber=1
             )
+            # print("upda view")
     except Exception as e:
         print(f"Error updating views: {e}")
 
@@ -386,7 +393,7 @@ def update_views(product, client_user):
 @api_view(['GET'])
 def  getAllProudactThatViewByClient(request):
     try:
-        token_key = request.data.get('Authorization')
+        token_key = request.headers.get('Authorization')
         if not token_key:
             return Response({"error": "Token is required"}, status=status.HTTP_401_UNAUTHORIZED)
         token = get_object_or_404(ClientToken, key=token_key)

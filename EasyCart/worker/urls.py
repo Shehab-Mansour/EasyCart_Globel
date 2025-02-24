@@ -9,6 +9,7 @@ from django.conf import settings
 urlpatterns = [
     #APIS
     path('',views.worker,name= "worker"),
+    path('login',views.workerlogin,name= "workerlogin"),
     path('getall/',views.getallWorkers,name= "getallworkers"),
     path('job/', views.job, name="job"),
 

@@ -7,6 +7,7 @@ urlpatterns = [
     #API
     path('getclient/', views.getclient, name='getclient'),
     path('register/', views.register, name='register'),
+    path('login/', views.login, name='login'),
     path('client/<str:clientUserName>/', views.userdetail, name='userdetail'),
     path('client/<str:clientUserName>/admin/', views.adminGetUserDetail, name='adminGetUserGetail'),
 

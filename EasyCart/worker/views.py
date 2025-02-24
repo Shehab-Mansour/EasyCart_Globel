@@ -13,13 +13,12 @@ from django.contrib.auth.hashers import check_password
 
 # Create your views here.
 
-
 @csrf_exempt
-@api_view(['GET','POST','PUT','DELETE'])
-def worker(request):
+@api_view(['POST'])
+def workerlogin(request):
     try:
         #worker log in
-        if request.method == "GET":
+        if request.method == "POST":
             workerusername = request.data.get('workerusername')
             workerpassword = request.data.get('workerpassword')
             if '@' in workerusername:
@@ -34,7 +33,7 @@ def worker(request):
                 token =WorkerToken.objects.create(key=token_key,worker=user_obj)
                 jobname = get_object_or_404(Job, id=user_obj.WorkerJobTitle_id) #get job name by id
                 workerdata={
-                    'Authorization ':token.key,
+                    'Authorization':token.key,
                     'WorkerUserName':user_obj.WorkerUserName,
                     'WorkerName':user_obj.WorkerName,
                     'WorkerJobTitle':jobname.JobName,
@@ -43,6 +42,13 @@ def worker(request):
                 return Response(workerdata, status=status.HTTP_200_OK)
             else:
                 return Response({'error':' wrong password'}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'error':e}, status=status.HTTP_400_BAD_REQUEST)
+
+@csrf_exempt
+@api_view(['POST','PUT','DELETE'])
+def worker(request):
+    try:
         # New worker from admin only
         if request.method == 'POST':
             data=request.data.copy() # take copy from sended data to add new pass and job id
