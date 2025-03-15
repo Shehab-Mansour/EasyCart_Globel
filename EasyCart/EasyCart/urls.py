@@ -10,8 +10,10 @@ urlpatterns = [
     path('user/',include("User.urls") ,name= "user" ),
     path('product/',include("product.urls"),name= "product"),
     path('worker/',include("worker.urls"),name= "worker"),
+    path('cart/', include("cart.urls"), name="cart"),
 
-    #API
+                  #API
     path('api/', include('rest_framework.urls')),
+    path('api/token/',TokenObtainPairView.as_view(), name='token_obtain_pair'),
 
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -8,7 +8,9 @@ class Migration(migrations.Migration):
     dependencies = [
         ('worker', '0011_alter_job_jobname'),
     ]
-
+    # dependencies = [
+    #     ('worker', '0001_initial'),
+    # ]
     operations = [
         migrations.AlterField(
             model_name='worker',

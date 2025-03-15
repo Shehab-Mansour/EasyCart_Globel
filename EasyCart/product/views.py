@@ -2,16 +2,37 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
+from rest_framework_simplejwt.exceptions import TokenError
 
 from User.models import ClientToken ,client
 from functions.product.rate import update_product_rating
+from worker.authentication import WorkerTokenAuthentication
+from worker.models import AdminToken
 from .models import Product,Category,Rate,View
 from .serializer import *
-
 import threading
+from django.shortcuts import render, get_object_or_404
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework import status
+from rest_framework.response import Response
+from worker.models import AdminToken,WorkerToken
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed
+from worker.models import WorkerToken, AdminToken
+from .serializer import CategorySerializer
+
+
+
+from worker.authentication import WorkerTokenAuthentication
 # Create your views here.
 
 
@@ -127,22 +148,86 @@ def newproduct(request):
 ############################# Category #############################
 
 # get all categories , add new category
-@csrf_exempt
-@api_view(['GET','POST'])
-def categories(request):
-    try:
-        if request.method == 'GET':
-            categories = Category.objects.all()
-            serializer=CategorySerializer(categories, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        if request.method == 'POST':
-            serializer = CategorySerializer(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+
+from rest_framework.permissions import BasePermission
+from worker.models import WorkerToken, AdminToken  # استيراد الموديلات الخاصة بالتوكنات
+
+class IsAdminOrWorker(BasePermission):
+    """ السماح فقط للـ Admin و Worker بالوصول إلى الـ View """
+
+    def has_permission(self, request, view):
+        auth_header = request.headers.get('Authorization')
+
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return False  # ❌ رفض الوصول إذا لم يكن هناك توكن صالح
+
+        token = auth_header.split(' ')[1]
+
+        # التحقق مما إذا كان التوكن موجودًا في قاعدة بيانات الـ Admin أو Worker
+        print(token)
+        return WorkerToken.objects.filter(token=token).exists() or AdminToken.objects.filter(token=token).exists()
+
+class CategoriesView(APIView):
+    authentication_classes = [IsAdminOrWorker]  # ✅ السماح فقط للـ Admin و Worker
+
+    def get(self, request):
+        """ إرجاع جميع التصنيفات """
+        categories = Category.objects.all()
+        serializer = CategorySerializer(categories, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """ إضافة تصنيف جديد """
+        serializer = CategorySerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# @csrf_exempt
+# @api_view(['GET','POST'])
+# def categories(request):
+#     authentication_classes = []
+#     permission_classes = []
+#     if not request.user or not request.user.is_authenticated:
+#
+#         auth = WorkerTokenAuthentication()
+#         try:
+#             user, token = auth.authenticate(request)  # المصادقة
+#             request.user = user  # تعيين المستخدم يدويًا
+#         except AuthenticationFailed:
+#             try:
+#                 auth_header = request.headers.get('Authorization')
+#
+#                 if not auth_header or not auth_header.startswith('Bearer '):
+#                     return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+#
+#                 token = auth_header.split(' ')[1]
+#
+#                 # حذف التوكن من جدول التوكنات
+#                 find = AdminToken.objects.filter(token=str(token))
+#                 if find.exists() == 0:
+#                     Authorization=True
+#                 else:
+#                     Authorization = False
+#
+#             except TokenError as e:
+#                 return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+#     try:
+#         if request.method == 'GET':
+#             categories = Category.objects.all()
+#             serializer=CategorySerializer(categories, many=True)
+#             return Response(serializer.data, status=status.HTTP_200_OK)
+#         if request.method == 'POST':
+#             serializer = CategorySerializer(data=request.data)
+#             if serializer.is_valid():
+#                 serializer.save()
+#                 return Response(serializer.data, status=status.HTTP_200_OK)
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#     except Exception as e:
+#         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+#
+
 # get category with category name , Update and Delete category
 @csrf_exempt
 @api_view(['GET','PUT','DELETE'])
