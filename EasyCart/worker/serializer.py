@@ -134,7 +134,7 @@ class WorkerSerializer(serializers.ModelSerializer):
 class AdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = Admin
-        fields = ['UserName', 'Name', 'Phone', 'Email',"IsSuperAdmin"]
+        fields = ['UserName', 'Name', 'Phone', 'Email',"IsSuperAdmin" ,'AdminImage']
 
     def create(self, validated_data):
         validated_data['Password'] = make_password(validated_data['UserName'])

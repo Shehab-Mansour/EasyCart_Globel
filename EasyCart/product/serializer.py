@@ -15,7 +15,7 @@ class GetallProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = ['QRNumber','ProductName','ProductPrice','ProductCategory','ProductBrand','ProductDescription','ProductImage','ProductWeight','ProductFasting','ProductBoycott',
-                  'ProductTotalRate','ProductDiscount','ProductAvailable','ExpiryDate','ModifiedBy','ModifiedDate',
+                  'ProductTotalRate','ProductDiscount','ProductAvailable','ExpiryDate','ModifiedBy','ModifiedDate','ProductPlace'
                   ]
 
 class ProductSerializer(serializers.ModelSerializer):
