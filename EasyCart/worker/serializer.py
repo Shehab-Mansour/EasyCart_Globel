@@ -1,94 +1,135 @@
 from rest_framework import serializers
-from worker.models import Worker, Job ,Admin
+from django.contrib.auth.hashers import check_password
+from .models import Worker, Admin, Job, WorkerPermission
+from .authentication import CustomRefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken
+#
+# class LoginSerializer(serializers.Serializer):
+#     username = serializers.CharField()
+#     password = serializers.CharField(write_only=True)
+#
+#     def validate(self, data):
+#         username = data.get("username")
+#         password = data.get("password")
+#
+#         # تحقق مما إذا كان المستخدم Admin أو Worker
+#         user = Worker.objects.filter(WorkerUserName=username).first()
+#         role = "worker"
+#         if not user:
+#             user = Admin.objects.filter(UserName=username).first()
+#             role = "admin"
+#
+#         if user and check_password(password, user.WorkerPassword if role == "worker" else user.Password):
+#             refresh = RefreshToken.for_user(user)
+#             return {
+#                 "access": str(refresh.access_token),
+#                 "refresh": str(refresh),
+#                 "role": role
+#             }
+#         raise serializers.ValidationError("Invalid username or password")
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        username = data.get("username")
+        password = data.get("password")
+
+        user = Worker.objects.filter(WorkerUserName=username).first()
+        role = "worker"
+
+        if not user:
+            user = Admin.objects.filter(UserName=username).first()
+            role = "admin"
+        if user and check_password(password, getattr(user, "WorkerPassword" if role == "worker" else "Password")):
+            refresh = CustomRefreshToken.for_custom_user(user, role)
+            return {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "role": role
+            }
+
+        raise serializers.ValidationError({"error": "Invalid username or password"})
+
+from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
-# #Worker
+from .models import Worker
 #
 # class WorkerSerializer(serializers.ModelSerializer):
-#     JobName = serializers.CharField(source='WorkerJobTitle.JobName', read_only=True)
 #     class Meta:
 #         model = Worker
-#         fields = ['WorkerUserName','WorkerName','JobName','WorkerSalary','WorkerImage']
-#
-#
-# class NewWorkerSerializer(serializers.ModelSerializer):
-#     WorkerPassword = serializers.CharField(write_only=True,required=True)
-#     WorkerImage = serializers.ImageField(required=False)
-#     class Meta:
-#         model = Worker
-#         fields = '__all__'
-#     def create(self, validated_data):
-#         #if pass not set default ==WorkerUserName
-#         password_value = validated_data.pop('WorkerPassword', None)
-#         if password_value is None:
-#             password = Worker.WorkerUserName
-#         else:
-#             password = password_value
-#         validated_data['WorkerPassword'] = make_password(password)
-#         instance = Worker(**validated_data)
-#         instance.save()
-#         return instance
-# # job
-# class JobSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Job
-#         fields =['JobName','JobDescription']
+#         fields = [
+#             'id',
+#             'WorkerUserName',
+#             'WorkerPassword',
+#             'WorkerName',
+#             'WorkerPhone',
+#             'WorkerEmail',
+#             'WorkerAddress',
+#             'WorkerJobTitle',
+#             'WorkerSalary',
+#             'WorkerImage',
+#             'IsSupervisor'
+#         ]
 #         extra_kwargs = {
-#             'pk': {'read_only':True},
+#             'WorkerPassword': {'write_only': True}  # عدم إرجاع كلمة المرور في الاستجابات
 #         }
-
-class NewJobSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Job
-        fields = ['JobName', 'JobDescription']
-        extra_kwargs = {
-            'pk': {'read_only': True},
-        }
-    def create(self, validated_data):
-        instance = Job(**validated_data)
-        instance.save()
-        return instance
-
-
 #
+#     def create(self, validated_data):
+#         """
+#         عند إنشاء موظف جديد، يتم تشفير كلمة المرور تلقائيًا.
+#         """
+#         validated_data['WorkerPassword'] = make_password(validated_data['WorkerUserName'])
+#         return super().create(validated_data)
 #
-# # class WorkerSerializer(serializers.ModelSerializer):
-# #     class Meta:
-# #         model = Worker
-# #         fields = '__all__'
-#
-# class AdminSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Admin
-#         fields = '__all__'
-#
-# class WorkerLoginSerializer(serializers.Serializer):
-#     WorkerUserName = serializers.CharField()
-#     WorkerPassword = serializers.CharField(write_only=True)
-#
-#
-# class AdminLoginSerializer(serializers.Serializer):
-#     UserName = serializers.CharField()
-#     Password = serializers.CharField(write_only=True)
-
-class JobSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Job
-        fields = ['id', 'JobName', 'JobDescription']
-
+#     def update(self, instance, validated_data):
+#         """
+#         منع تحديث كلمة المرور مباشرةً (يجب أن يتم ذلك عبر API منفصل لتغيير كلمة المرور).
+#         """
+#         validated_data.pop('WorkerPassword', None)
+#         return super().update(instance, validated_data)
 class WorkerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Worker
-        fields = ['WorkerUserName', 'WorkerName', 'WorkerPhone', 'WorkerEmail', 'WorkerAddress', 'WorkerJobTitle', 'WorkerSalary', 'WorkerImage']
+        fields = [
+            # 'id',
+            'WorkerUserName',
+            'WorkerPassword',
+            'WorkerName',
+            'WorkerPhone',
+            'WorkerEmail',
+            'WorkerAddress',
+            'WorkerJobTitle',
+            'WorkerSalary',
+            'WorkerImage',
+            'IsSupervisor'
+        ]
+        extra_kwargs = {
+            # 'id':{'read_only': True},
+            'WorkerUserName': {'required': True},
+            'WorkerPassword': {'write_only': True},
+            'WorkerName': {'required': False},
+            'WorkerPhone': {'required': True},
+            'WorkerEmail': {'required': False},
+            'WorkerAddress': {'required': False},
+            'WorkerSalary': {'required': True},
+            'WorkerJobTitle': {'required': True},
+            'IsSupervisor': {'required': True}
+        }
+
 
     def create(self, validated_data):
         validated_data['WorkerPassword'] = make_password(validated_data['WorkerUserName'])
         return super().create(validated_data)
+
 
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         return instance
+
 
 class AdminSerializer(serializers.ModelSerializer):
     class Meta:
@@ -105,6 +146,20 @@ class AdminSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=100)
-    password = serializers.CharField(max_length=1024, write_only=True)
+
+class JobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Job
+        fields = [
+            'JobName','JobDescription'
+        ]
+        extra_kwargs = {
+            'id': {'read_only': True},
+            'JobName': {'required': False}
+                }
+
+class WorkerPermissionSerializer(serializers.ModelSerializer):
+    JobName = serializers.PrimaryKeyRelatedField(queryset=Job.objects.all())  # ربط الصلاحيات بالوظيفة
+    class Meta:
+        model = WorkerPermission
+        fields = ['JobName', 'can_add_products', 'can_edit_products', 'can_delete_products']

@@ -1,39 +1,20 @@
-from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view
-from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework import status
-from rest_framework_simplejwt.exceptions import TokenError
 
 from User.models import ClientToken ,client
+from User.permission import IsClientUser
 from functions.product.rate import update_product_rating
-from worker.authentication import WorkerTokenAuthentication
-from worker.models import AdminToken
-from .models import Product,Category,Rate,View
+from worker.authentication import getUserType
 from .serializer import *
 import threading
 from django.shortcuts import render, get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import AuthenticationFailed
-from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework import status
-from rest_framework.response import Response
-from worker.models import AdminToken,WorkerToken
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed
-from worker.models import WorkerToken, AdminToken
 from .serializer import CategorySerializer
-
-
-
-from worker.authentication import WorkerTokenAuthentication
-# Create your views here.
+from worker.permission import IsAdminUser, IsWorker, IsAdminOrWorker
 
 
 def products(request):
@@ -52,36 +33,10 @@ def getallproducts(request):
     except Exception as e:
         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
-# get specific product by QRNumber in header
-# @csrf_exempt
-# @api_view(['GET','PUT','DELETE'])
-# def productdetails(request, QRNumber):
-#     try:
-#         product = Product.objects.get(QRNumber=QRNumber)
-#     except Product.DoesNotExist:
-#         return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-#     try:
-#         if request.method == 'GET':
-#             serializer=ProductSerializer(product)
-#             if serializer:
-#                 return Response(serializer.data, status=status.HTTP_200_OK)
-#             else:
-#                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-#         if request.method == 'PUT':
-#             serializer = ProductSerializer(product, data=request.data, partial=True)
-#             if serializer.is_valid():
-#                 serializer.save()
-#                 return Response(serializer.data, status=status.HTTP_200_OK)
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-#         if request.method == 'DELETE':
-#             product.delete()
-#             return Response({'message':'The Product Deleted Success'},status=status.HTTP_204_NO_CONTENT)
-#     except Exception as e:
-#         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-
 
 @csrf_exempt
-@api_view(['GET', 'PUT', 'DELETE'])
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def productdetails(request, QRNumber):
     try:
         product = Product.objects.get(QRNumber=QRNumber)
@@ -89,15 +44,16 @@ def productdetails(request, QRNumber):
         return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
     try:
         if request.method == 'GET':
-            # print(request.headers.get('Authorization'))
             if request.headers.get('Authorization'):
                 token_key = request.headers.get('Authorization')
                 # print(token_key)
                 try:
-                    token = ClientToken.objects.get(key=token_key)
-                    client_user = token.user
-                    # print(client_user)
-                    threading.Thread(target=update_views, args=(product, client_user)).start()
+                    user_role=getUserType(request)
+                    if user_role != "user":
+                        print("منور يعم النتس اتفضل")
+                        pass
+                    else:
+                        threading.Thread(target=update_views, args=(product, request.user)).start()
                 except ClientToken.DoesNotExist:
                     print("DoesNotExist")
                     pass
@@ -107,7 +63,38 @@ def productdetails(request, QRNumber):
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
+@csrf_exempt
+@api_view(['POST'])  # لا حاجة لـ 'GET' لأن هذا `POST` فقط
+@permission_classes([IsAdminOrWorker])  # السماح فقط للمسؤولين والموظفين
+def newproduct(request):
+    try:
+        if request.method == 'POST':
+            user_role = getUserType(request) # استخراج الـ role من كائن المستخدم
+            serializer = NewProductSerializer(data=request.data, context={"request": request ,"user_role": user_role})
+            if serializer.is_valid():
+                serializer.save()
+                product = get_object_or_404(Product, QRNumber=serializer.data['QRNumber'])
+                serializer2 = ProductSerializer(product)
+                return Response(serializer2.data, status=status.HTTP_201_CREATED)  # 201 يعني تم الإنشاء
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@csrf_exempt
+@api_view(['PUT','DELETE'])  # لا حاجة لـ 'GET' لأن هذا `POST` فقط
+@permission_classes([IsAdminOrWorker])  # السماح فقط للمسؤولين والموظفين
+def editproduct(request, QRNumber):
+    try:
+        try:
+            product = Product.objects.get(QRNumber=QRNumber)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
         if request.method == 'PUT':
             serializer = ProductSerializer(product, data=request.data, partial=True)
             if serializer.is_valid():
@@ -118,26 +105,6 @@ def productdetails(request, QRNumber):
         if request.method == 'DELETE':
             product.delete()
             return Response({'message': 'The Product Deleted Successfully'}, status=status.HTTP_204_NO_CONTENT)
-
-    except Exception as e:
-        return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-
-# add New Product
-@csrf_exempt
-@api_view(['GET','POST'])
-def newproduct(request):
-    if request.method == 'GET':
-        return Response({'message':'Add New Product '})
-    try:
-        if request.method == 'POST':
-            serializer = NewProductSerializer(data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                product=get_object_or_404(Product,QRNumber=serializer.data['QRNumber'])
-                serializer2=ProductSerializer(product)
-                return Response(serializer2.data, status=status.HTTP_200_OK)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 ############################# END Product #############################
@@ -148,89 +115,15 @@ def newproduct(request):
 ############################# Category #############################
 
 # get all categories , add new category
-
-from rest_framework.permissions import BasePermission
-from worker.models import WorkerToken, AdminToken  # استيراد الموديلات الخاصة بالتوكنات
-
-class IsAdminOrWorker(BasePermission):
-    """ السماح فقط للـ Admin و Worker بالوصول إلى الـ View """
-
-    def has_permission(self, request, view):
-        auth_header = request.headers.get('Authorization')
-
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return False  # ❌ رفض الوصول إذا لم يكن هناك توكن صالح
-
-        token = auth_header.split(' ')[1]
-
-        # التحقق مما إذا كان التوكن موجودًا في قاعدة بيانات الـ Admin أو Worker
-        print(token)
-        return WorkerToken.objects.filter(token=token).exists() or AdminToken.objects.filter(token=token).exists()
-
 class CategoriesView(APIView):
-    authentication_classes = [IsAdminOrWorker]  # ✅ السماح فقط للـ Admin و Worker
-
     def get(self, request):
         """ إرجاع جميع التصنيفات """
         categories = Category.objects.all()
         serializer = CategorySerializer(categories, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def post(self, request):
-        """ إضافة تصنيف جديد """
-        serializer = CategorySerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-# @csrf_exempt
-# @api_view(['GET','POST'])
-# def categories(request):
-#     authentication_classes = []
-#     permission_classes = []
-#     if not request.user or not request.user.is_authenticated:
-#
-#         auth = WorkerTokenAuthentication()
-#         try:
-#             user, token = auth.authenticate(request)  # المصادقة
-#             request.user = user  # تعيين المستخدم يدويًا
-#         except AuthenticationFailed:
-#             try:
-#                 auth_header = request.headers.get('Authorization')
-#
-#                 if not auth_header or not auth_header.startswith('Bearer '):
-#                     return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
-#
-#                 token = auth_header.split(' ')[1]
-#
-#                 # حذف التوكن من جدول التوكنات
-#                 find = AdminToken.objects.filter(token=str(token))
-#                 if find.exists() == 0:
-#                     Authorization=True
-#                 else:
-#                     Authorization = False
-#
-#             except TokenError as e:
-#                 return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
-#     try:
-#         if request.method == 'GET':
-#             categories = Category.objects.all()
-#             serializer=CategorySerializer(categories, many=True)
-#             return Response(serializer.data, status=status.HTTP_200_OK)
-#         if request.method == 'POST':
-#             serializer = CategorySerializer(data=request.data)
-#             if serializer.is_valid():
-#                 serializer.save()
-#                 return Response(serializer.data, status=status.HTTP_200_OK)
-#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-#     except Exception as e:
-#         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-#
-
-# get category with category name , Update and Delete category
+####################################### get category with category name , Update and Delete category###############3
 @csrf_exempt
-@api_view(['GET','PUT','DELETE'])
+@api_view(['GET'])
 def categorydetails(request, CategoryName):
     try:
         category = Category.objects.get(CategoryName=CategoryName)
@@ -243,6 +136,30 @@ def categorydetails(request, CategoryName):
                 return Response(serializer.data, status=status.HTTP_200_OK)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def categoryadd(request):
+    try:
+        if request.method == 'POST':
+            serializer = CategorySerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+@csrf_exempt
+@api_view(['PUT','DELETE'])
+@permission_classes([IsAdminOrWorker])
+def categoryedite(request, CategoryName):
+    try:
+        category = Category.objects.get(CategoryName=CategoryName)
+    except Category.DoesNotExist:
+        return Response({"error": "Category not found"}, status=status.HTTP_404_NOT_FOUND)
+    try:
         if request.method == 'PUT':
             serializer = CategorySerializer(category, data=request.data)
             if serializer.is_valid():
@@ -278,6 +195,7 @@ def getProductsInCategory(request, CategoryName):
 #############################   Rate   #############################
 @csrf_exempt
 @api_view(['GET','POST','PUT','DELETE'])
+@permission_classes([IsAuthenticated])
 def rate(request):
     try:
         if request.method == 'GET':
@@ -285,41 +203,6 @@ def rate(request):
             serializer = RateSerializer(rates, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         if request.method == 'POST' or  request.method == 'PUT' or request.method == 'DELETE':
-            # token_key = request.data.get('Authorization')
-            # qr_number = request.data.get('QRNumber')
-            # if not token_key:
-            #     return Response({"error": "Token is required"}, status=status.HTTP_401_UNAUTHORIZED)
-            # if not qr_number:
-            #     return Response({"error": "QRNumber is required"}, status=status.HTTP_400_BAD_REQUEST)
-            # token = get_object_or_404(ClientToken, key=token_key)
-            # client_user = token.user
-            # product = get_object_or_404(Product, QRNumber=qr_number)
-            # request_data = {
-            #     "ProductName": product.id,
-            #     "ClientUserName": client_user.id,
-            #     "RateValue": request.data.get('RateValue'),
-            #     "Comment": request.data.get('Comment', ""),
-            # }
-            # existing_rate = Rate.objects.filter(ProductName=product, ClientUserName=client_user).first()
-            # if existing_rate:
-            #     serializer = RateSerializer(existing_rate, data=request_data)
-            #     action = "updated"
-            # else:
-            #     serializer = NewRateSerializer(data=request_data)
-            #     action = "created"
-            #
-            # if serializer.is_valid():
-            #     rate_instance = serializer.save()
-            #     update_product_rating(product)
-            #     return Response(
-            #         {
-            #             "message": f"Rate {action} successfully.",
-            #             "data": serializer.data,
-            #         },
-            #         status=status.HTTP_201_CREATED if action == "created" else status.HTTP_200_OK,
-            #     )
-            # else:
-            #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             try:
                 token_key = request.data.get('Authorization')
                 qr_number = request.data.get('QRNumber')
@@ -411,20 +294,23 @@ def getAllProductRates(request,QRNumber):
 ### get AllClient Rates with clientUserName ##
 @csrf_exempt
 @api_view(['GET'])
-def getAllClientRates(request,clientUserName):
+@permission_classes([IsAuthenticated])
+def getAllClientRates(request):
     try:
-        if request.method == 'GET':
-            token_key = request.headers.get('Authorization')
-            if not token_key:
-                return Response({"error": "Token is required"}, status=status.HTTP_401_UNAUTHORIZED)
-            token = get_object_or_404(ClientToken, key=token_key)
-            client_user = token.user
-            if str(client_user) == str(clientUserName):
-                rates = Rate.objects.filter(ClientUserName=client_user)
-                serializer = RateSerializer(rates, many=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            else:
-                return Response({"error": "Client is Not Found or not the same Authorization"}, status=status.HTTP_404_NOT_FOUND)
+        user_type=getUserType(request)
+        print(user_type)
+        if user_type in["user"]:
+            if request.method == 'GET':
+                client_user = request.user
+                if str(client_user):
+                    rates = Rate.objects.filter(ClientUserName=client_user.id)
+                    serializer = RateSerializer(rates, many=True)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                else:
+                    return Response({"error": "Client is Not Found or not the same Authorization"}, status=status.HTTP_404_NOT_FOUND)
+        elif user_type in ["admin","worker"]:
+            if request.method == 'GET':
+                return Response({"error": "You Act as Admin or worker"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 

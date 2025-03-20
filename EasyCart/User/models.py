@@ -16,11 +16,13 @@ class client(models.Model):
     clientMoney = models.IntegerField(null=False , blank=False, default=0)
     clientPoints = models.IntegerField(null=False , blank=False ,default=0)
     clientImage = models.ImageField(upload_to=client_directory_path, default='clientPhotos/default/clientImage.png')
+    IsClient = models.BooleanField(default=True)
     def __str__(self):
         return self.clientUserName
 
-
-
+    @property
+    def is_authenticated(self):
+        return True
 
 
 class ClientToken(models.Model):

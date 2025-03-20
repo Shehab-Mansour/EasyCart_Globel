@@ -3,7 +3,7 @@ from django.contrib.auth.hashers import make_password
 import datetime
 from rest_framework.views import APIView
 from .models import Product,Category,Rate,View
-from worker.models import Worker
+from worker.models import Worker, Admin
 from django.db.models import Avg
 
 
@@ -41,23 +41,45 @@ class ProductSerializer(serializers.ModelSerializer):
         return instance
 
 class NewProductSerializer(serializers.ModelSerializer):
-    ProductCategory = serializers.CharField(write_only=True)
-    ModifiedBy = serializers.CharField(write_only=True)
+    # ProductCategory = serializers.CharField(write_only=True)
+    # ModifiedBy = serializers.CharField(write_only=True)
+    # class Meta:
+    #     model = Product
+    #     exclude = ['ModifiedDate']
+    # def create(self, validated_data):
+    #     print(validated_data)
+    #     category_name = validated_data.pop('ProductCategory', None)
+    #     worker_username = validated_data.pop('ModifiedBy', None)
+    #     try:
+    #         category = Category.objects.get(CategoryName=category_name)
+    #     except Category.DoesNotExist:
+    #         raise serializers.ValidationError({"ProductCategory": "Category not found"})
+    #     try:
+    #         worker = Worker.objects.get(WorkerUserName=worker_username)
+    #     except Worker.DoesNotExist:
+    #         raise serializers.ValidationError({"ModifiedBy": "Worker not found"})
+    #     product = Product.objects.create(ProductCategory=category, ModifiedBy=worker, **validated_data)
+    #     return product
+    ProductCategory = serializers.CharField(write_only=True)  # تمرير اسم التصنيف بدلاً من الكائن
     class Meta:
         model = Product
         exclude = ['ModifiedDate']
     def create(self, validated_data):
+        request = self.context.get('request')  # جلب الـ request من الـ context
+        if not request or not request.user:
+            raise serializers.ValidationError({"detail": "Authentication required"})
+        user = request.user
+        user_role = self.context.get("user_role")
+        if user_role == "admin":
+            raise serializers.ValidationError({"detail": "يسطا انت ادمن م تخلي حد من العبيد يشوف الشغل دا"})
+        elif user_role not in ["worker"]:
+            raise serializers.ValidationError({"detail": "Only workers modify products"})
         category_name = validated_data.pop('ProductCategory', None)
-        worker_username = validated_data.pop('ModifiedBy', None)
         try:
             category = Category.objects.get(CategoryName=category_name)
         except Category.DoesNotExist:
             raise serializers.ValidationError({"ProductCategory": "Category not found"})
-        try:
-            worker = Worker.objects.get(WorkerUserName=worker_username)
-        except Worker.DoesNotExist:
-            raise serializers.ValidationError({"ModifiedBy": "Worker not found"})
-        product = Product.objects.create(ProductCategory=category, ModifiedBy=worker, **validated_data)
+        product = Product.objects.create(ProductCategory=category, ModifiedBy=user, **validated_data)
         return product
 ############################# Product #############################
 

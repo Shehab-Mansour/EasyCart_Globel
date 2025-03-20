@@ -266,6 +266,8 @@ INSTALLED_APPS = [
     'worker.apps.WorkerConfig',
     'rest_framework.authtoken',
     'corsheaders',
+    'rest_framework_simplejwt.token_blacklist',
+
 ]
 
 MIDDLEWARE = [
@@ -277,6 +279,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
 ]
 
 ROOT_URLCONF = 'EasyCart.urls'
@@ -341,10 +344,11 @@ if not check_primary_db():
 #         'rest_framework_simplejwt.authentication.JWTAuthentication',
 #     )
 # }
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'worker.authentication.CustomAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'worker.authentication.WorkerTokenAuthentication'
     )
 }
 
@@ -353,11 +357,14 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'BLACKLIST_AFTER_ROTATION': True,
+    # 'ROTATE_REFRESH_TOKENS': False,
     'AUTH_TOKEN_CLASSES': (
         'rest_framework_simplejwt.tokens.AccessToken',
-    )
-
+    ),
+    'USER_ID_FIELD': 'id',  # تأكد أن الحقل مطابق للنماذج المخصصة لديك
+    'USER_ID_CLAIM': 'user_id',  # سنستخدمه لاحقًا في إنشاء التوكين يدويًا
 }
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -411,5 +418,9 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'worker.authentication.CustomAuthentication',  # تأكد من تغيير myapp لاسم تطبيقك
+    'django.contrib.auth.backends.ModelBackend',  # دعم تسجيل الدخول العادي
+]
 
 CORS_ALLOW_CREDENTIALS = True
