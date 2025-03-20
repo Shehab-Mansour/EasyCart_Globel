@@ -262,10 +262,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'worker.apps.WorkerConfig',
     'rest_framework.authtoken',
-    'corsheaders',
     'rest_framework_simplejwt.token_blacklist',
 
 ]
@@ -355,7 +355,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=10),
     'BLACKLIST_AFTER_ROTATION': True,
     # 'ROTATE_REFRESH_TOKENS': False,
     'AUTH_TOKEN_CLASSES': (
@@ -419,8 +419,8 @@ CORS_ALLOW_HEADERS = [
 ]
 
 AUTHENTICATION_BACKENDS = [
-    'worker.authentication.CustomAuthentication',  # تأكد من تغيير myapp لاسم تطبيقك
-    'django.contrib.auth.backends.ModelBackend',  # دعم تسجيل الدخول العادي
+    'worker.authentication.CustomAuthentication',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 CORS_ALLOW_CREDENTIALS = True

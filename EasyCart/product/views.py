@@ -1,6 +1,6 @@
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 
 from User.models import ClientToken ,client
 from User.permission import IsClientUser
@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializer import CategorySerializer
 from worker.permission import IsAdminUser, IsWorker, IsAdminOrWorker
-
+from User.models import client
 
 def products(request):
     return HttpResponse("product list page")
@@ -194,7 +194,7 @@ def getProductsInCategory(request, CategoryName):
 
 #############################   Rate   #############################
 @csrf_exempt
-@api_view(['GET','POST','PUT','DELETE'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def rate(request):
     try:
@@ -202,17 +202,29 @@ def rate(request):
             rates = Rate.objects.all()
             serializer = RateSerializer(rates, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        if request.method == 'POST' or  request.method == 'PUT' or request.method == 'DELETE':
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@csrf_exempt
+@api_view(['GET','POST','PUT','DELETE'])
+@permission_classes([IsAuthenticated])
+def getAllProductRates(request,QRNumber):
+    try:
+        product = Product.objects.filter(QRNumber=QRNumber).first()
+        if not product:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'GET':
+            rates = Rate.objects.filter(ProductName=product)
+            if not rates:
+                return Response({"message": "No Rates yet"}, status=status.HTTP_404_NOT_FOUND)
+            serializer = RateSerializer(rates, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        elif request.method == 'POST' or request.method == 'PUT' or request.method == 'DELETE':
             try:
-                token_key = request.data.get('Authorization')
-                qr_number = request.data.get('QRNumber')
-                if not token_key:
-                    return Response({"error": "Token is required"}, status=status.HTTP_401_UNAUTHORIZED)
-                if not qr_number:
-                    return Response({"error": "QRNumber is required"}, status=status.HTTP_400_BAD_REQUEST)
-                token = get_object_or_404(ClientToken, key=token_key)
-                client_user = token.user
-                product = get_object_or_404(Product, QRNumber=qr_number)
+                client_user = request.user
+                user_type=getUserType(request)
+                if user_type not in ['user']:
+                    return Response({"error": f"{user_type} can't be rated or updated rats"}, status=status.HTTP_401_UNAUTHORIZED)
                 if request.method == 'POST':
                     request_data = {
                         "ProductName": product.id,
@@ -223,10 +235,19 @@ def rate(request):
                     # print(request_data)
                     existing_rate = Rate.objects.filter(ProductName=product, ClientUserName=client_user).first()
                     if existing_rate:
-                        return Response(
-                            {"error": "Rate already exists for this product."},
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
+                        serializer = RateSerializer(existing_rate, data=request_data)
+                        if serializer.is_valid():
+                            serializer.save()
+                            update_product_rating(product)
+                            return Response(
+                                {
+                                    "message": "you was Rate this product and the Rate updated successfully.",
+                                    "data": serializer.data,
+                                },
+                                status=status.HTTP_200_OK,
+                            )
+                        else:
+                            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                     serializer = NewRateSerializer(data=request_data)
                     if serializer.is_valid():
                         serializer.save()
@@ -240,31 +261,11 @@ def rate(request):
                         )
                     else:
                         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-                elif request.method == 'PUT':
-                    existing_rate = get_object_or_404(Rate, ProductName=product, ClientUserName=client_user)
-                    request_data = {
-                        "ProductName": product.id,
-                        "ClientUserName": client_user.id,
-                        "RateValue": request.data.get('RateValue'),
-                        "Comment": request.data.get('Comment', existing_rate.Comment),
-                    }
-                    serializer = RateSerializer(existing_rate, data=request_data)
-                    if serializer.is_valid():
-                        serializer.save()
-                        update_product_rating(product)
-                        return Response(
-                            {
-                                "message": "Rate updated successfully.",
-                                "data": serializer.data,
-                            },
-                            status=status.HTTP_200_OK,
-                        )
-                    else:
-                        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                 elif request.method == 'DELETE':  # Delete
                     rate_instance = Rate.objects.filter(ProductName=product, ClientUserName=client_user).first()
                     if not rate_instance:
-                        return Response({"error": "Rate not found for this product."}, status=status.HTTP_404_NOT_FOUND)
+                        return Response({"error": "Rate not found for this product."},
+                                        status=status.HTTP_404_NOT_FOUND)
                     rate_instance.delete()
                     update_product_rating(product)
                     return Response({"message": "Rate deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
@@ -272,20 +273,6 @@ def rate(request):
                     return Response({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
             except Exception as e:
                 return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-@csrf_exempt
-@api_view(['GET'])
-def getAllProductRates(request,QRNumber):
-    try:
-        if request.method == 'GET':
-            product = get_object_or_404(Product, QRNumber=QRNumber)
-            rates = Rate.objects.filter(ProductName=product)
-            if not rates:
-                return Response({"message": "No Rates yet"}, status=status.HTTP_404_NOT_FOUND)
-            serializer = RateSerializer(rates, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
@@ -360,31 +347,119 @@ def update_views(product, client_user):
         print(f"Error updating views: {e}")
 
 
-
+@csrf_exempt
 @api_view(['GET'])
-def  getAllProudactThatViewByClient(request):
+@permission_classes([IsAdminOrWorker])
+def getAllProudactThatViewByClient(request,clientUserName):
     try:
-        token_key = request.headers.get('Authorization')
-        if not token_key:
-            return Response({"error": "Token is required"}, status=status.HTTP_401_UNAUTHORIZED)
-        token = get_object_or_404(ClientToken, key=token_key)
-        client_user = token.user
-        user_views = View.objects.filter(ClientUserName=client_user)
-        if not user_views.exists():
-            return Response({"message": "No views found for this user."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = ViewSerializer(user_views, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if request.method == 'GET':
+            client_user = client.objects.filter(clientUserName=clientUserName).first()
+            if not client_user:
+                return Response({"error": "Client User not found"}, status=status.HTTP_404_NOT_FOUND)
+            user_views = View.objects.filter(ClientUserName=client_user.id).order_by('-LastView')
+            if not user_views.exists():
+                return Response({"message": "No views found for this user."}, status=status.HTTP_404_NOT_FOUND)
+            serializer = ViewSerializer(user_views, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Method not allowed"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+@csrf_exempt
 @api_view(['GET'])
+@permission_classes([IsClientUser])
+def getlastview(request):
+    try:
+        if request.method == 'GET':
+            client_user = request.user
+            if not client_user:
+                return Response({"error": "Client User not found"}, status=status.HTTP_404_NOT_FOUND)
+            user_views = View.objects.filter(ClientUserName=client_user.id).order_by('-LastView')[:3]
+            if not user_views.exists():
+                return Response({"message": "No views yet."}, status=status.HTTP_404_NOT_FOUND)
+            serializer = ViewSerializer(user_views, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Method not allowed"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@csrf_exempt
+@api_view(['GET'])
+@permission_classes([IsAdminOrWorker])
 def getAllProudactView(request,QRNumber):
     try:
-        product = get_object_or_404(Product, QRNumber=QRNumber)
-        product_views = View.objects.filter(ProductName=product)
-        if not product_views.exists():
-            return Response({"message": "No views found for this product."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = ViewSerializer(product_views, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if request.method == 'GET':
+            print(IsAdminOrWorker)
+            product = Product.objects.filter(QRNumber=QRNumber).first()
+            if not product:
+                return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+            product_views = View.objects.filter(ProductName=product)
+            if not product_views.exists():
+                return Response({"message": "No views found for this product."}, status=status.HTTP_404_NOT_FOUND)
+            serializer = ViewSerializer(product_views, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Method not allowed"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+#################################### My Wishlist #############################
+class MyWishlistView(APIView):
+    permission_classes = [IsAuthenticated, IsClientUser]
+
+    def get(self, request):
+        client = request.user
+        wishlist = Wishlist.objects.filter(client=client)
+        if not wishlist:
+            return Response({"message": "empty"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = WishlistSerializer(wishlist, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, qr_number):
+        client = request.user
+        product = get_object_or_404(Product, QRNumber=qr_number)
+        wishlist_item, created = Wishlist.objects.get_or_create(client=client, product=product)
+
+        if not created:
+            return Response({"error": "Product already in wishlist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Product added to wishlist"}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, qr_number):
+        client = request.user
+        wishlist_item = Wishlist.objects.filter(client=client, product__QRNumber=qr_number).first()
+
+        if wishlist_item:
+            wishlist_item.delete()
+            return Response({"message": "Product removed from wishlist"}, status=status.HTTP_204_NO_CONTENT)
+
+        return Response({"error": "Product not in wishlist"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class AllWishlistsView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOrWorker]
+
+    def get(self, request):
+        wishlist = Wishlist.objects.select_related('client', 'product')
+        data = [
+            {"client": w.client.clientUserName, "product": w.product.ProductName, "added_at": w.added_at}
+            for w in wishlist
+        ]
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class UserWishlistView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOrWorker]
+
+    def get(self, request, clientUserName):
+        Client = get_object_or_404(client, clientUserName=clientUserName)
+        wishlist = Wishlist.objects.filter(client=Client)
+        serializer = WishlistSerializer(wishlist, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

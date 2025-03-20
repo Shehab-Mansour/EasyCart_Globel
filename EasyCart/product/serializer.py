@@ -2,7 +2,7 @@ from  rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 import datetime
 from rest_framework.views import APIView
-from .models import Product,Category,Rate,View
+from .models import Product, Category, Rate, View, Wishlist
 from worker.models import Worker, Admin
 from django.db.models import Avg
 
@@ -111,11 +111,11 @@ class AllProductsInCategorySerializer(serializers.ModelSerializer):
 class RateSerializer(serializers.ModelSerializer):
     ProductName = serializers.CharField(source='ProductName.ProductName', read_only=True)
     ClientUserName = serializers.CharField(source='ClientUserName.clientUserName', read_only=True)
-    ClientName=serializers.SerializerMethodField()
+    # ClientName=serializers.SerializerMethodField()
     RatingTime = serializers.SerializerMethodField()
     class Meta:
         model = Rate
-        fields = ['ClientUserName','ClientName','ProductName', 'RateValue', 'Comment', 'RatingTime']
+        fields = ['ClientUserName','ProductName', 'RateValue', 'Comment', 'RatingTime']
         read_only_fields = ['RatingTime']
 
     def update(self, instance, validated_data):
@@ -159,3 +159,33 @@ class ViewSerializer(serializers.ModelSerializer):
         return f"{obj.ClientUserName.clientUserName}"
 
 ############################# END View   #############################
+
+
+class WishlistSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.ProductName', read_only=True)
+    product_weight = serializers.FloatField(source='product.ProductWeight', read_only=True)
+    product_price = serializers.FloatField(source='product.ProductPrice', read_only=True)
+    product_discount = serializers.IntegerField(source='product.ProductDiscount', read_only=True)
+    product_image = serializers.ImageField(source='product.ProductImage', read_only=True)
+
+    client_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Wishlist
+        fields = ['product_name', 'product_weight', 'product_price', 'product_discount', 'product_image',
+                  'client_username']
+
+    def get_client_username(self, obj):
+        """✅ إرجاع اسم المستخدم فقط إذا كان المستخدم إدمن"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and hasattr(request.user,
+                                                                 'is_admin_or_worker') and request.user.is_admin_or_worker:
+            return obj.client.clientUserName
+        return None
+
+    def to_representation(self, instance):
+        """✅ حذف `client_username` من البيانات إذا كان المستخدم ليس إدمن"""
+        data = super().to_representation(instance)
+        if data.get('client_username') is None:
+            data.pop('client_username')
+        return data

@@ -76,3 +76,14 @@ class View(models.Model):
 
 
 
+class Wishlist(models.Model):
+    client = models.ForeignKey(client, on_delete=models.CASCADE, related_name="wishlist")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="wishlisted_by")
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('client', 'product')  # لمنع تكرار نفس المنتج لنفس المستخدم
+
+    def __str__(self):
+        return f"{self.client.clientUserName} -> {self.product.ProductName}"
+

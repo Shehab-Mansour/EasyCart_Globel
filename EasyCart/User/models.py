@@ -3,6 +3,7 @@ from django.db import models
 from functions.user.client import client_directory_path
 # Create your models here.
 
+
 #
 class client(models.Model):
     clientUserName = models.CharField(max_length=50,null=False , blank=False , unique=True)
@@ -29,7 +30,3 @@ class ClientToken(models.Model):
     key = models.CharField(max_length=40, primary_key=True)
     user = models.ForeignKey('client', related_name='auth_tokens', on_delete=models.CASCADE)
     created = models.DateTimeField(auto_now_add=True)
-
-
-
-
