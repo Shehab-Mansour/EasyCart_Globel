@@ -35,7 +35,7 @@ class CustomAuthentication(BaseAuthentication):
                 user = Admin.objects.filter(id=user_id).first()
             elif user_type == "worker":
                 user = Worker.objects.filter(id=user_id).first()
-            elif user_type == "user":
+            elif user_type == "user" or user_type == "client":
                 user = client.objects.filter(id=user_id).first()
             else:
                 raise AuthenticationFailed(("Invalid user type."))

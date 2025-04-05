@@ -1,6 +1,6 @@
 from django.urls import path , include,re_path
 from . import views
-from .views import CategoriesView, MyWishlistView, AllWishlistsView, UserWishlistView
+from .views import CategoriesView, MyWishlistView, AllWishlistsView, UserWishlistView, StatisticsView, CommentsListView ,CategoriesWithProductCountView
 
 urlpatterns = [
     path('', views.products, name='product'),
@@ -19,8 +19,11 @@ urlpatterns = [
     path('categories/<str:CategoryName>/', views.categoryedite, name='categorydetails'),
     path('categories/<str:CategoryName>/details/', views.categorydetails, name='categorydetails'),
 
+    path('statistics/', StatisticsView.as_view(), name='statistics'),
+    path('statistics/feedback/', CommentsListView.as_view(), name='statistics'),
+    path('statistics/categories/', CategoriesWithProductCountView.as_view(), name='statistics'),
+
     path('in/<str:CategoryName>/', views.getProductsInCategory, name='getProductsInCategory'),
-    path('<str:QRNumber>/', views.productdetails, name='productdetails'),
     path('edit/<str:QRNumber>/', views.editproduct, name='editproduct'),
 
     path('wishlist/getmywish/', MyWishlistView.as_view(), name='wishlist'),
@@ -28,5 +31,6 @@ urlpatterns = [
     path('wishlist/remove/<str:qr_number>/', MyWishlistView.as_view(), name='remove_from_wishlist'),
     path('wishlist/all/', AllWishlistsView.as_view(), name='all_wishlists'),
     path('wishlist/user/<str:clientUserName>/', UserWishlistView.as_view(), name='user_wishlist'),
+    path('<str:QRNumber>/', views.productdetails, name='productdetails'),
 
 ]

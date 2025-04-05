@@ -73,12 +73,11 @@ def newproduct(request):
     try:
         if request.method == 'POST':
             user_role = getUserType(request) # استخراج الـ role من كائن المستخدم
-            serializer = NewProductSerializer(data=request.data, context={"request": request ,"user_role": user_role})
+            serializer = NewProductSerializer(data=request.data,many=True, context={"request": request ,"user_role": user_role})
             if serializer.is_valid():
                 serializer.save()
-                product = get_object_or_404(Product, QRNumber=serializer.data['QRNumber'])
-                serializer2 = ProductSerializer(product)
-                return Response(serializer2.data, status=status.HTTP_201_CREATED)  # 201 يعني تم الإنشاء
+                serializer2 =ProductSerializer(serializer.instance,many=True)
+                return Response(serializer2.data, status=status.HTTP_201_CREATED)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -87,8 +86,8 @@ def newproduct(request):
 
 
 @csrf_exempt
-@api_view(['PUT','DELETE'])  # لا حاجة لـ 'GET' لأن هذا `POST` فقط
-@permission_classes([IsAdminOrWorker])  # السماح فقط للمسؤولين والموظفين
+@api_view(['PUT','DELETE'])
+@permission_classes([IsAdminOrWorker])
 def editproduct(request, QRNumber):
     try:
         try:
@@ -463,3 +462,53 @@ class UserWishlistView(APIView):
         wishlist = Wishlist.objects.filter(client=Client)
         serializer = WishlistSerializer(wishlist, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+############################### data analysis ###############
+class StatisticsView(APIView):
+    permission_classes = [IsAdminOrWorker]  # اجعلها اختيارية إذا لم يكن هناك توثيق مطلوب
+
+    def get(self, request):
+        data = {
+            "Categories": Category.objects.count(),
+            "Products": Product.objects.count(),
+            "Rates": Rate.objects.count(),
+            "Customers": client.objects.count(),
+            "Feedback": Rate.objects.exclude(Comment__isnull=True).exclude(Comment="").count(),
+            "Carts": "not yet", #Cart.objects.count(),
+            "Orders":0
+        }
+        return Response(data)
+
+class CommentsListView(APIView):
+    permission_classes = [IsAdminOrWorker]
+
+    def get(self, request):
+        comments = Rate.objects.exclude(Comment__isnull=True).exclude(Comment="")
+        data = [
+            {
+                "product": rate.ProductName.ProductName,  # اسم المنتج
+                "comment": rate.Comment,  # نص التعليق
+                "customer": rate.ClientUserName.clientUserName  # اسم العميل
+            }
+            for rate in comments
+        ]
+
+        return Response(data)
+
+
+class CategoriesWithProductCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        categories = Category.objects.all()
+
+        data = [
+            {
+                "category": category.CategoryName,  # اسم الـ Category
+                "products": category.ProductCategory.count()  # عدد المنتجات المرتبطة بها
+            }
+            for category in categories
+        ]
+
+        return Response(data)

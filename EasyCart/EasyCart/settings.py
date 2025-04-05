@@ -347,6 +347,7 @@ if not check_primary_db():
 # }
 
 REST_FRAMEWORK = {
+    'DATETIME_FORMAT': "%Y-%m-%d %H:%M:%S",  # يظهر الوقت والتاريخ فقط
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'worker.authentication.CustomAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -384,9 +385,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
+
 
 # Static files
 STATIC_URL = 'static/'
@@ -425,3 +424,6 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+TIME_ZONE = 'Africa/Cairo'
+USE_TZ = True  # تأكد أن هذا السطر موجود ومفعّل
+print(SECRET_KEY)
