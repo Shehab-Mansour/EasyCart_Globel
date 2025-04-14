@@ -1,9 +1,11 @@
 from django.urls import path , include,re_path
 from . import views
-from .views import CategoriesView, MyWishlistView, AllWishlistsView, UserWishlistView, StatisticsView, CommentsListView ,CategoriesWithProductCountView
+from .views import CategoriesView, MyWishlistView, AllWishlistsView, UserWishlistView, StatisticsView, CommentsListView ,CategoriesWithProductCountView,CategorySalesGraphAPIView,ProductCategorySearchAPIView,SearchHistoryListAPIView
+
+
 
 urlpatterns = [
-    path('', views.products, name='product'),
+    # path('', views.products, name='product'),
     path('getall/', views.getallproducts, name='getallproducts'),
     path('add/', views.newproduct, name='newproduct'),
     path('categories/',CategoriesView.as_view(), name='categories'),
@@ -22,6 +24,11 @@ urlpatterns = [
     path('statistics/', StatisticsView.as_view(), name='statistics'),
     path('statistics/feedback/', CommentsListView.as_view(), name='statistics'),
     path('statistics/categories/', CategoriesWithProductCountView.as_view(), name='statistics'),
+    path('statistics/scatter/', CategorySalesGraphAPIView.as_view(), name='statistics'),
+
+    path('search/', ProductCategorySearchAPIView.as_view(), name='search'),
+    path('searchhistory/', SearchHistoryListAPIView.as_view(), name='search'),
+
 
     path('in/<str:CategoryName>/', views.getProductsInCategory, name='getProductsInCategory'),
     path('edit/<str:QRNumber>/', views.editproduct, name='editproduct'),

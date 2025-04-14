@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
@@ -153,8 +154,6 @@ class  VirtualCartCheckOut(APIView):
 
 
 class EsyCartVirtualCartCheckIn(APIView):
-
-
     def post(self, request):
         EasyCartdata=getEasyCart(request)
         try:
@@ -272,7 +271,6 @@ class EasyCartItems(APIView):
             VirtualCartObj.totalWeight -= removed_weight
             VirtualCartObj.save()
 
-            # ضيف الكمية المطلوبة للكارت الذكي
             easy_item, created = EasyCartVirtualCartItem.objects.get_or_create(
                 cart=EasyCartVirtualCartObj,
                 product=product,
@@ -294,6 +292,91 @@ class EasyCartItems(APIView):
                 easy_item.save()
             # ومش بنعدل على VirtualCartObj في الحالة دي
 
+        easy_cart_items_data = EasyCartVirtualCartSerializer(
+            [EasyCartVirtualCartObj], many=True
+        ).data
+
+        virtual_cart_data = VirtualCartSerializer(
+            [VirtualCartObj], many=True
+        ).data
+
+        data = {
+            "EasyCartVirtualItems": virtual_cart_data,
+            "EasyCartItems": easy_cart_items_data,
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        EasyCartID = request.auth.get('EasyCart')
+        if not EasyCartID:
+            return Response({"error": "Not Authorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        EasyCartObj = get_object_or_404(EasyCart, cartId=EasyCartID)
+        client_obj = EasyCartObj.lastUsedBy
+        VirtualCartObj = get_object_or_404(VirtualCart, client=client_obj)
+
+        EasyCartVirtualCartObj, _ = EasyCartVirtualCart.objects.get_or_create(
+            easyCart=EasyCartObj,
+            client=client_obj
+        )
+
+        qr_number = request.data.get('QRNumber')
+        quantity = request.data.get('quantity')
+
+        if not qr_number or not quantity:
+            return Response({"error": "QRNumber and quantity are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            quantity = int(quantity)
+            if quantity < 1:
+                raise ValueError
+        except:
+            return Response({"error": "Quantity must be a positive integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = get_object_or_404(Product, QRNumber=qr_number)
+
+        try:
+            easy_item = EasyCartVirtualCartItem.objects.get(cart=EasyCartVirtualCartObj, product=product)
+        except EasyCartVirtualCartItem.DoesNotExist:
+            return Response({"error": "Product not found in EasyCart."}, status=status.HTTP_404_NOT_FOUND)
+
+        # حساب الكمية اللي هتنقص فعلاً من الكارت الذكية
+        actual_removed_quantity = min(quantity, easy_item.quantity)
+
+        if quantity >= easy_item.quantity:
+            easy_item.delete()
+        else:
+            easy_item.quantity -= quantity
+            easy_item.save()
+
+        # تحديث أو إنشاء العنصر داخل VirtualCart
+        virtual_item, created = VirtualCartItem.objects.get_or_create(
+            cart=VirtualCartObj,
+            product=product,
+            defaults={'quantity': actual_removed_quantity}
+        )
+        if not created:
+            virtual_item.quantity += actual_removed_quantity
+            virtual_item.save()
+
+        # تعديل الإجماليات بتاعة VirtualCart
+        added_price = actual_removed_quantity * product.ProductPrice * (1 - product.ProductDiscount / 100)
+        added_weight = actual_removed_quantity * product.ProductWeight
+
+        VirtualCartObj.totalQuantity += actual_removed_quantity
+        VirtualCartObj.totalPrice += added_price
+        VirtualCartObj.totalWeight += added_weight
+        VirtualCartObj.save()
+
+        items = EasyCartVirtualCartItem.objects.filter(cart=EasyCartVirtualCartObj)
+        EasyCartVirtualCartObj.totalQuantity = sum(item.quantity for item in items)
+        EasyCartVirtualCartObj.totalPrice = sum(
+            item.quantity * item.product.ProductPrice * (1 - item.product.ProductDiscount / 100) for item in items)
+        EasyCartVirtualCartObj.totalWeight = sum(item.quantity * item.product.ProductWeight for item in items)
+        EasyCartVirtualCartObj.save()
+
+        # البيانات المرجعة
         easy_cart_items_data = EasyCartVirtualCartSerializer(
             [EasyCartVirtualCartObj], many=True
         ).data
@@ -332,6 +415,21 @@ class EasyCartView(APIView):
         else:
             error = f"Cart is {EasyCartdata.cartStatus}"
             return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+    def put(self, request,EasycartID):
+        # تعديل كارت موجود
+        cart_id = EasycartID
+        battery = request.data.get('batteryPercentage')
+        location = request.data.get('location')
+        try:
+            cart = EasyCart.objects.get(cartId=cart_id)
+            if battery is not None:
+                cart.batteryPercentage = battery
+            if location is not None:
+                cart.location = location
+            cart.save()
+            return Response({"message": "Cart updated"}, status=status.HTTP_200_OK)
+        except EasyCart.DoesNotExist:
+            return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class EasyCartAdminItemsView(APIView):
     authentication_classes = [CustomAuthentication]
@@ -343,6 +441,116 @@ class EasyCartAdminItemsView(APIView):
         cartItems=EasyCartVirtualCart.objects.filter(easyCart=EasyCartdata).all()
 
         return Response(EasyCartVirtualCartSerializer(cartItems,many=True).data, status=status.HTTP_200_OK)
+
+
+class CheckoutAPIView(APIView):
+    authentication_classes=[CustomAuthentication]
+    permission_classes=[IsClientUser]
+    def post(self, request):
+        user = request.user
+        try:
+            EasyCartID = request.auth.get('EasyCart')
+            if not EasyCartID:
+                return Response({"error": "Not Authorized"}, status=status.HTTP_401_UNAUTHORIZED)
+            EasyCartVc=EasyCartVirtualCart.objects.filter(easyCart=EasyCartID).first()
+            if not EasyCartVc :
+                return Response({"error":"You must log in first or Easy Cart is empty"},status=status.HTTP_401_UNAUTHORIZED)
+
+            if EasyCartVc.items.count() == 0:
+                return Response({"detail": "Easy Cart is empty"}, status=400)
+            if EasyCartVc.totalPrice >0:
+                purchased_cart = PurchasedCart.objects.create(
+                    client=user,
+                    totalAmount=EasyCartVc.totalPrice,
+                    totalWeight=EasyCartVc.totalWeight,
+                    totalQuantity=EasyCartVc.totalQuantity,
+                    # paymentMethod=request.data.get("paymentMethod", "Card NFC"),
+                    paymentMethod="Card NFC",
+                    nfcTransactionId=request.data.get("nfcTransactionId")
+                )
+
+                for item in EasyCartVc.items.all():
+                    crate= PurchasedCartItem.objects.create(
+                        cart=purchased_cart,
+                        product=item.product,
+                        quantity=item.quantity,
+                        priceAtPurchase=item.product.ProductPrice,
+                        purchasedAt=now()
+                    )
+
+                if crate:
+                    Pdata=PurchasedCartSerializer(purchased_cart).data
+                    if Pdata:
+                        virtual_cart = VirtualCart.objects.get(client=user)
+                        EasyCartdata = EasyCart.objects.filter(cartId=EasyCartID).first()
+                        if not EasyCartdata:
+                            return Response({"error": "Easy Cart Not found"}, status=status.HTTP_404_NOT_FOUND)
+                        EasyCartdata.cartStatus = "ready"
+                        EasyCartdata.VirtualCart = None
+                        EasyCartdata.lastUsedBy = None
+                        EasyCartdata.save(update_fields=["cartStatus", "VirtualCart", "lastUsedBy"])
+                        virtual_cart.delete()
+                        EasyCartVc.delete()
+                        # print("comp")
+                        # print(PurchasedCartSerializer(purchased_cart).data)
+                        return Response({
+                            "detail": "Transaction completed successfully",
+                            "invoice":PurchasedCartSerializer(purchased_cart).data
+                        })
+                else:
+                    return Response("error : Transaction fielded", status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"error:you must add items"})
+
+        except VirtualCart.DoesNotExist:
+            return Response({"detail": "Not Authorized"}, status=404)
+
+
+
+class UserInvoicesAPIView(ListAPIView):
+    serializer_class = PurchasedCartSerializer
+    authentication_classes=[CustomAuthentication]
+    permission_classes = [IsClientUser]
+    def get_queryset(self):
+        return PurchasedCart.objects.filter(client=self.request.user).order_by('-createdAt')
+
+
+from rest_framework.permissions import IsAdminUser
+
+class AllInvoicesAPIView(ListAPIView):
+    serializer_class = AdminPurchasedCartSerializer
+    authentication_classes=[CustomAuthentication]
+    permission_classes = [IsAdminOrWorker]
+    def get_queryset(self):
+        return PurchasedCart.objects.all().order_by('-createdAt')
+
+
+
+class EasyCartAPIView(APIView):
+    authentication_classes=[CustomAuthentication]
+    permission_classes = [IsAdminOrWorker]
+    def get(self, request):
+        cart=EasyCart.objects.all()
+        serializer = EasyCartSerializer(cart, many=True)
+        return Response(serializer.data , status=status.HTTP_200_OK)
+    def post(self, request):
+        # battery = request.data.get('batteryPercentage')
+        battery=90
+        location = request.data.get('location')
+        if battery is None or location is None:
+            return Response({"error": "batteryPercentage and location are required"}, status=status.HTTP_400_BAD_REQUEST)
+        cart = EasyCart.objects.create(batteryPercentage=battery, location=location)
+        return Response({"message": "Cart created", "id": cart.cartId}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        cart_id = request.data.get('cartId')
+        try:
+            cart = EasyCart.objects.get(cartId=cart_id)
+            cart.delete()
+            return Response({"message": "Cart deleted"}, status=status.HTTP_200_OK)
+        except EasyCart.DoesNotExist:
+            return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 @csrf_exempt
@@ -392,9 +600,25 @@ def refresh_token_view(request):
 
 
 
+class UpdateCartLocationWeightAPIView(APIView):
+    def put(self, request, EasycartId):
+        location = request.data.get("location")
+        weight = request.data.get("weight")
 
+        if location is None or weight is None:
+            return Response(
+                {"error": "location and weight are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            cart = EasyCart.objects.get(cartId=EasycartId)
+            cart.location = location
+            cart.weight = weight
+            cart.save(update_fields=["location", "weight", "updatedAt"])
+            return Response({"message": "Cart updated successfully"}, status=status.HTTP_200_OK)
 
-
+        except EasyCart.DoesNotExist:
+            return Response({"error": "Cart not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 
@@ -404,3 +628,4 @@ def refresh_token_view(request):
 def cart(request):
     EasyCart.objects.create(batteryPercentage=50, location="Aisle 2")
     return Response("done", status=status.HTTP_200_OK)
+

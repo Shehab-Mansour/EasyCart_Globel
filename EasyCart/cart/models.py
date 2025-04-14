@@ -1,4 +1,6 @@
 import uuid
+from datetime import timezone
+
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from User.models import client
@@ -82,6 +84,7 @@ class EasyCart(models.Model):
     weight=models.FloatField(default=0)
     numberOfItems=models.IntegerField(default=0)
     VirtualCart=models.ForeignKey(VirtualCart, on_delete=models.SET_NULL, null=True, blank=True)
+    lastMaintenanceTime=models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Cart {self.cartId} - {self.cartStatus}"
@@ -164,3 +167,5 @@ class PurchasedCartItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity}x {self.product.ProductName} in Purchased Cart"
+
+

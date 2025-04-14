@@ -87,3 +87,14 @@ class Wishlist(models.Model):
     def __str__(self):
         return f"{self.client.clientUserName} -> {self.product.ProductName}"
 
+
+
+class SearchHistory(models.Model):
+    keyword = models.CharField(max_length=255)
+    category = models.CharField(max_length=255, null=True, blank=True)
+    product = models.CharField(max_length=255, null=True, blank=True)
+    search_date = models.DateTimeField(auto_now_add=True)
+    client=models.ForeignKey(client, on_delete=models.CASCADE, related_name="search_history")
+
+    def __str__(self):
+        return f"{self.keyword} - {self.search_date}"

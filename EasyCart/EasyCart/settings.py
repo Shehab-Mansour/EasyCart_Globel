@@ -247,7 +247,11 @@ SECRET_KEY = 'django-insecure-aqithoo8jxi9na(nh(weqtrux$_dl365xk0f!uk6(lm4nd1e%a
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '192.168.1.55',
+    '127.0.0.1',
+    '192.168.251.216',
+]
 
 # Application definition
 
@@ -363,8 +367,8 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': (
         'rest_framework_simplejwt.tokens.AccessToken',
     ),
-    'USER_ID_FIELD': 'id',  # تأكد أن الحقل مطابق للنماذج المخصصة لديك
-    'USER_ID_CLAIM': 'user_id',  # سنستخدمه لاحقًا في إنشاء التوكين يدويًا
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 # Password validation
@@ -426,4 +430,3 @@ AUTHENTICATION_BACKENDS = [
 CORS_ALLOW_CREDENTIALS = True
 TIME_ZONE = 'Africa/Cairo'
 USE_TZ = True  # تأكد أن هذا السطر موجود ومفعّل
-print(SECRET_KEY)

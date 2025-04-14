@@ -1,11 +1,13 @@
+from django.db.models.functions import TruncMonth
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.permissions import IsAuthenticated, BasePermission
 
 from User.models import ClientToken ,client
 from User.permission import IsClientUser
+from cart.models import PurchasedCartItem
 from functions.product.rate import update_product_rating
-from worker.authentication import getUserType
+from worker.authentication import getUserType, CustomAuthentication
 from .serializer import *
 import threading
 from django.shortcuts import render, get_object_or_404
@@ -391,7 +393,6 @@ def getlastview(request):
 def getAllProudactView(request,QRNumber):
     try:
         if request.method == 'GET':
-            print(IsAdminOrWorker)
             product = Product.objects.filter(QRNumber=QRNumber).first()
             if not product:
                 return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -464,19 +465,98 @@ class UserWishlistView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-############################### data analysis ###############
+
+
+
+
+
+
+###################################SARCH#####################33333
+from django.db.models import Q
+from .models import SearchHistory
+class ProductCategorySearchAPIView(APIView):
+    authentication_classes = [CustomAuthentication]
+    permission_classes = [IsClientUser]
+    def post(self, request):
+        client = request.user
+        category_filter = request.data.get('category')
+        product_filter = request.data.get('product')
+
+        if not category_filter and not product_filter:
+            result = []
+        else:
+            products = Product.objects.select_related('ProductCategory')
+            if category_filter:
+                products = products.filter(ProductCategory__CategoryName__icontains=category_filter)
+            if product_filter:
+                products = products.filter(ProductName__icontains=product_filter)
+            # حفظ عملية البحث
+            if category_filter or product_filter:
+                keyword = f"category: {category_filter or ''}, product: {product_filter or ''}"
+                SearchHistory.objects.create(
+                    keyword=keyword,
+                    category=category_filter,
+                    product=product_filter,
+                    client=client,
+                )
+
+            result = []
+            for product in products:
+                result.append({
+                    'ProductName': product.ProductName,
+                    'ProductPrice': product.ProductPrice,
+                    'Category': product.ProductCategory.CategoryName,
+                    'ProductDescription': product.ProductDescription,
+                    'ProductImage': request.build_absolute_uri(product.ProductImage.url)
+                })
+
+        return Response(result,status=status.HTTP_200_OK)
+
+
+class SearchHistoryListAPIView(APIView):
+    authentication_classes = [CustomAuthentication]
+    permission_classes = [IsClientUser]
+    def get(self, request):
+        client = request.user
+        history = SearchHistory.objects.filter(client=client).order_by('-search_date')[:20]
+        data = [
+            {
+                'date': h.search_date.strftime('%Y-%m-%d %H:%M'),
+                'category': h.category,
+                'product': h.product
+            }
+            for h in history
+        ]
+        return Response(data)
+
+
+############################### data analysis ######################################################
+from cart.models import VirtualCart ,EasyCart
+from django.db.models import F, Sum, FloatField, ExpressionWrapper
+
 class StatisticsView(APIView):
     permission_classes = [IsAdminOrWorker]  # اجعلها اختيارية إذا لم يكن هناك توثيق مطلوب
 
     def get(self, request):
+        discounted_price = ExpressionWrapper(
+            F('priceAtPurchase') * (1 - F('product__ProductDiscount') / 100.0),
+            output_field=FloatField()
+        )
+
+        total_revenue = PurchasedCartItem.objects.annotate(
+            actual_price=discounted_price
+        ).aggregate(
+            total=Sum(F('actual_price') * F('quantity'), output_field=FloatField())
+        )['total'] or 0
         data = {
             "Categories": Category.objects.count(),
             "Products": Product.objects.count(),
             "Rates": Rate.objects.count(),
             "Customers": client.objects.count(),
             "Feedback": Rate.objects.exclude(Comment__isnull=True).exclude(Comment="").count(),
-            "Carts": "not yet", #Cart.objects.count(),
-            "Orders":0
+            "Carts":EasyCart.objects.count(), #Cart.objects.count(),
+            "Orders":VirtualCart.objects.count(),
+            "Revenue":round(total_revenue , 2)
         }
         return Response(data)
 
@@ -502,13 +582,40 @@ class CategoriesWithProductCountView(APIView):
 
     def get(self, request):
         categories = Category.objects.all()
+        products = Product.objects.all().count()
 
         data = [
             {
-                "category": category.CategoryName,  # اسم الـ Category
-                "products": category.ProductCategory.count()  # عدد المنتجات المرتبطة بها
+                "label": category.CategoryName,  # اسم الـ Category
+                "value": category.ProductCategory.count() ,# عدد المنتجات المرتبطة بها
+                # "pers":(category.ProductCategory.count()/products)*100,
+
             }
             for category in categories
         ]
 
         return Response(data)
+
+
+class CategorySalesGraphAPIView(APIView):
+    permission_classes = [IsAdminOrWorker]
+
+    def get(self, request):
+        data = PurchasedCartItem.objects.annotate(
+            month=TruncMonth('purchasedAt'),
+            category_name=F('product__ProductCategory__CategoryName')
+        ).values(
+            'month', 'category_name'
+        ).annotate(
+            total_quantity=Sum('quantity')
+        ).order_by('month')
+
+        result = []
+        for item in data:
+            result.append({
+                'x': item['month'].strftime('%Y-%m'),  # الشهر
+                'y': item['category_name'],            # الكاتيجوري
+                'amount': item['total_quantity']       # الكمية
+            })
+
+        return Response(result)

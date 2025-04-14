@@ -11,8 +11,7 @@ from .serializer import WorkerSerializer ,AdminSerializer,JobSerializer
 from rest_framework_simplejwt.exceptions import TokenError
 from .authentication import  CustomAuthentication ,getUserType
 from .models import Worker, Job, Admin, WorkerPermission
-from rest_framework_simplejwt.views import TokenRefreshView
-from .permission import IsAdminUser, IsWorker
+from .permission import IsAdminUser #,IsWorker
 
 
 class LoginView(APIView):
@@ -34,11 +33,11 @@ class LogoutView(APIView):
             return Response({"message": "Logged out successfully"}, status=status.HTTP_205_RESET_CONTENT)
         except TokenError:
             return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # except Exception as e:
+        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class CreateView(generics.CreateAPIView):
+class CreateView(APIView):
     authentication_classes = [CustomAuthentication]
     permission_classes = [IsAdminUser]
     def post(self, request):
@@ -130,7 +129,7 @@ class JobUpdateView(generics.UpdateAPIView):
     queryset = Job.objects.all()
     serializer_class = JobSerializer
     lookup_field = "JobName"  # البحث يتم بناءً على JobName
-    lookup_url_kwarg = "JobName"  # تحديد اسم البراميتر في الـ URL
+    lookup_url_kwarg = "JobName"
     def get_object(self):
         JobName = self.kwargs.get(self.lookup_url_kwarg)
         return get_object_or_404(Job, JobName=JobName)
@@ -140,7 +139,7 @@ class WorkerPermissionView(generics.RetrieveAPIView,generics.CreateAPIView, gene
     queryset = WorkerPermission.objects.all()
     serializer_class = WorkerPermissionSerializer
     permission_classes = [IsAdminUser]
-    lookup_field = "job__JobName"  # البحث عن الوظيفة عبر JobName بدلاً من pk
+    lookup_field = "job__JobName"
 
     def get_object(self):
         """البحث عن صلاحيات الوظيفة باستخدام JobName"""

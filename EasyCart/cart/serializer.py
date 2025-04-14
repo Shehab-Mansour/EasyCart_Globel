@@ -24,7 +24,7 @@ class EasyCartSerializer(serializers.ModelSerializer):
         fields = [
             'cartId', 'cartStatus', 'batteryPercentage',
             'location', 'lastUsedBy', 'lastUsedAt',
-            'createdAt', 'updatedAt'
+            'createdAt', 'updatedAt' ,'lastMaintenanceTime'
         ]
         read_only_fields = ['cartId', 'createdAt', 'updatedAt']
 
@@ -163,14 +163,35 @@ class PurchasedCartItemSerializer(serializers.ModelSerializer):
 
 
 class PurchasedCartSerializer(serializers.ModelSerializer):
-    items = PurchasedCartItemSerializer(many=True, read_only=True)
+    items = serializers.SerializerMethodField()
+    # client = ClientSerializer(read_only=True)
+
+    class Meta:
+        model = PurchasedCart
+        fields = [
+            'totalAmount', 'totalWeight',
+            'totalQuantity', 'paymentMethod', 'nfcTransactionId',
+            'items', 'createdAt'
+        ]
+        read_only_fields = ['cartId', 'createdAt']
+
+    def get_items(self, obj):
+        items = obj.items.all().order_by('id')
+        return {index + 1: EasyCartVirtualCartItemSerializer(item).data for index, item in enumerate(items)}
+
+class AdminPurchasedCartSerializer(serializers.ModelSerializer):
+    items = serializers.SerializerMethodField()
     client = ClientSerializer(read_only=True)
 
     class Meta:
         model = PurchasedCart
         fields = [
-            'cartId', 'client', 'totalAmount', 'totalWeight',
+            'client','totalAmount', 'totalWeight',
             'totalQuantity', 'paymentMethod', 'nfcTransactionId',
             'items', 'createdAt'
         ]
         read_only_fields = ['cartId', 'createdAt']
+
+    def get_items(self, obj):
+        items = obj.items.all().order_by('id')
+        return {index + 1: EasyCartVirtualCartItemSerializer(item).data for index, item in enumerate(items)}
