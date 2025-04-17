@@ -19,6 +19,8 @@ class Category(models.Model):
         return self.CategoryName
 
 
+
+
 class Product(models.Model):
     ProductName = models.CharField(max_length=100)#1
     ProductPrice = models.FloatField()#2
@@ -26,15 +28,15 @@ class Product(models.Model):
     ProductImage = models.ImageField(upload_to=product_directory_path, default='ProductPhotos/ProductDefaultPhoto.png')#4
     ProductWeight = models.FloatField()#5
     ProductBrand = models.CharField(max_length=120)#6
-    ProductFasting=models.BooleanField()#7
-    ProductBoycott=models.BooleanField()#8
+    ProductFasting=models.BooleanField(default=False, null=True)#7
+    ProductBoycott=models.BooleanField(default=False, null=True)#8
     NumberOfViews=models.IntegerField(default=0)#9
     ProductPlace=models.CharField(max_length=12,unique=True)#10  #A1-5R-2-1 ()   #https://chatgpt.com/c/673c230a-e058-8011-b61d-b8f5231e014a
     AICode=models.CharField(max_length=12 ,default="code")#11
     ProductTotalRate=models.FloatField(validators=[MinValueValidator(0.0), MaxValueValidator(5.0)])#12
     ProductDiscount=models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)], default=0)#13
     ProductQuantity=models.IntegerField()#14
-    ProductAvailable=models.BooleanField()#15
+    ProductAvailable=models.BooleanField(default=0, null=True)#15
     QRNumber=models.CharField(max_length=25,unique=True)#16
     ExpiryDate=models.DateField(default="2030-01-01")#17
 
@@ -46,7 +48,6 @@ class Product(models.Model):
 
     def __str__(self):
         return self.ProductName
-
 
 class Rate(models.Model):
     ProductName=models.ForeignKey(Product, on_delete=models.CASCADE)

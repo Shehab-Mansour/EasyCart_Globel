@@ -251,6 +251,7 @@ ALLOWED_HOSTS = [
     '192.168.1.55',
     '127.0.0.1',
     '192.168.251.216',
+    'shehab123.pythonanywhere.com'
 ]
 
 # Application definition
@@ -308,47 +309,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'EasyCart.wsgi.application'
 
 # Database Configuration
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'postgres',
+#         'USER': 'postgres.xnkyyylgdjkhtttepica',
+#         'PASSWORD': 'Easy@cart/2025', # DB pass
+#         'HOST': 'aws-0-us-west-1.pooler.supabase.com',
+#         'PORT': '6543' ,
+#         'ATOMIC_REQUESTS': False,
+
+#     }
+# }
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'postgres',
-        'USER': 'postgres.xnkyyylgdjkhtttepica',
-        'PASSWORD': 'Easy@cart/2025', # DB pass
-        'HOST': 'aws-0-us-west-1.pooler.supabase.com',
-        'PORT': '6543'
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
-# قاعدة البيانات الاحتياطية
-SECONDARY_DATABASE = {
-    'ENGINE': 'django.db.backends.mysql',
-    'NAME': 'EasyCart',
-    'USER': 'root',
-    'PASSWORD': '',
-    'HOST': '127.0.0.1',
-    'PORT': '3309',
-}
-
-# التحقق من الاتصال بقاعدة البيانات الأساسية
-def check_primary_db():
-    try:
-        connection = connections['default']
-        connection.cursor()  # محاولة فتح اتصال
-        return True
-    except OperationalError:
-        return False
-
-# التبديل إلى قاعدة البيانات الاحتياطية إذا تعذر الاتصال بالأساسية
-if not check_primary_db():
-    DATABASES['default'] = SECONDARY_DATABASE
-
-
-# REST_FRAMEWORK = {
-#     'DEFAULT_AUTHENTICATION_CLASSES': (
-#
-#         'rest_framework_simplejwt.authentication.JWTAuthentication',
-#     )
-# }
 
 REST_FRAMEWORK = {
     'DATETIME_FORMAT': "%Y-%m-%d %H:%M:%S",  # يظهر الوقت والتاريخ فقط
