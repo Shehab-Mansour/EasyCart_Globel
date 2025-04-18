@@ -8,6 +8,8 @@ from django.db import models
 ## models import
 from worker.models import Worker
 from User.models import client
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 
 # Create your models here.
 
@@ -42,7 +44,12 @@ class Product(models.Model):
 
     #ForeignKey
     ProductCategory=models.ForeignKey(Category, on_delete=models.SET_DEFAULT,related_name='ProductCategory',default=None)
-    ModifiedBy=models.ForeignKey(Worker, on_delete=models.SET_DEFAULT,related_name='ProductModifiedBy',default=None)
+    # ModifiedBy=models.ForeignKey(Worker, on_delete=models.SET_DEFAULT,related_name='ProductModifiedBy',default=None)
+    modifier_content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
+    modifier_object_id = models.PositiveIntegerField(null=True)
+    ModifiedBy = GenericForeignKey('modifier_content_type', 'modifier_object_id')
+
+
     ModifiedDate=models.DateTimeField(auto_now_add=True,blank=True ,null=True) #auto
 
 

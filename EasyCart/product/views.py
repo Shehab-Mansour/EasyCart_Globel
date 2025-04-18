@@ -74,11 +74,11 @@ def productdetails(request, QRNumber):
 def newproduct(request):
     try:
         if request.method == 'POST':
-            user_role = getUserType(request) # استخراج الـ role من كائن المستخدم
-            serializer = NewProductSerializer(data=request.data,many=True, context={"request": request ,"user_role": user_role})
+            user_role = getUserType(request)
+            serializer = NewProductSerializer(data=request.data, context={"request": request ,"user_role": user_role})
             if serializer.is_valid():
                 serializer.save()
-                serializer2 =ProductSerializer(serializer.instance,many=True)
+                serializer2 =ProductSerializer(serializer.instance)
                 return Response(serializer2.data, status=status.HTTP_201_CREATED)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

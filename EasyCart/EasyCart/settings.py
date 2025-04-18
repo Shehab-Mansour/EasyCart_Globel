@@ -251,7 +251,8 @@ ALLOWED_HOSTS = [
     '192.168.1.55',
     '127.0.0.1',
     '192.168.251.216',
-    'shehab123.pythonanywhere.com'
+    'shehab123.pythonanywhere.com',
+    'easycart-nameless-firefly-5486.fly.devfla'
 ]
 
 # Application definition
@@ -409,3 +410,13 @@ AUTHENTICATION_BACKENDS = [
 CORS_ALLOW_CREDENTIALS = True
 TIME_ZONE = 'Africa/Cairo'
 USE_TZ = True  # تأكد أن هذا السطر موجود ومفعّل
+
+
+# Looking to send emails in production? Check out our Email API/SMTP product!
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'shehab2052002@gmail.com'         # ← إيميل جوجل بتاعك
+EMAIL_HOST_PASSWORD = 'uvstlrvgzkksyadq'        # ← كلمة مرور التطبيق اللي طلّعتها
+#uvst lrvg zkks yadq

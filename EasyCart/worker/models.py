@@ -13,8 +13,6 @@ class Job(models.Model):
     def __str__(self):
         return self.JobName
 
-
-# جدول مخصص للصلاحيات لكل وظيفة
 class WorkerPermission(models.Model):
     JobName = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='permissions')
     can_add_products = models.BooleanField(default=False)
