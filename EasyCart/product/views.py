@@ -141,7 +141,7 @@ def categorydetails(request, CategoryName):
         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAdminOrWorker])
 def categoryadd(request):
     try:
         if request.method == 'POST':
