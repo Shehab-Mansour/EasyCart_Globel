@@ -7,7 +7,7 @@ from worker.models import Worker, Admin
 from django.db.models import Avg
 
 
-
+'''
 ############################# Product #############################
 class GetallProductSerializer(serializers.ModelSerializer):
     ProductCategory = serializers.CharField(source='ProductCategory.CategoryName', read_only=True)
@@ -60,12 +60,12 @@ class NewProductSerializer(serializers.ModelSerializer):
     #         raise serializers.ValidationError({"ModifiedBy": "Worker not found"})
     #     product = Product.objects.create(ProductCategory=category, ModifiedBy=worker, **validated_data)
     #     return product
-    ProductCategory = serializers.CharField(write_only=True)  # تمرير اسم التصنيف بدلاً من الكائن
+    ProductCategory = serializers.CharField(write_only=True)
     class Meta:
         model = Product
         exclude = ['ModifiedDate']
     def create(self, validated_data):
-        request = self.context.get('request')  # جلب الـ request من الـ context
+        request = self.context.get('request')
         if not request or not request.user:
             raise serializers.ValidationError({"detail": "Authentication required"})
         user = request.user
@@ -82,6 +82,112 @@ class NewProductSerializer(serializers.ModelSerializer):
         product = Product.objects.create(ProductCategory=category, ModifiedBy=user, **validated_data)
         return product
 ############################# Product #############################
+'''
+
+##############################################################################
+from django.contrib.contenttypes.models import ContentType
+
+
+class NewProductSerializer(serializers.ModelSerializer):
+    ProductCategory = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Product
+        exclude = ['ModifiedDate', 'modifier_content_type', 'modifier_object_id']
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if not request or not request.user:
+            raise serializers.ValidationError({"detail": "Authentication required"})
+
+        user = request.user
+        user_role = self.context.get("user_role")
+        if user_role not in ["worker", "admin"]:
+            raise serializers.ValidationError({"detail": "Only workers or admins can modify products"})
+
+        category_name = validated_data.pop('ProductCategory', None)
+        try:
+            category = Category.objects.get(CategoryName=category_name)
+        except Category.DoesNotExist:
+            raise serializers.ValidationError({"ProductCategory": "Category not found"})
+
+        # تحديد الـ ContentType بناءً على نوع المستخدم
+        content_type = ContentType.objects.get_for_model(user.__class__)
+
+        product = Product.objects.create(
+            ProductCategory=category,
+            modifier_content_type=content_type,
+            modifier_object_id=user.id,
+            **validated_data
+        )
+        return product
+
+class GetallProductSerializer(serializers.ModelSerializer):
+    ProductCategory = serializers.CharField(source='ProductCategory.CategoryName', read_only=True)
+    ModifiedBy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['QRNumber', 'ProductName', 'ProductPrice', 'ProductCategory', 'ProductBrand', 'ProductDescription',
+                  'ProductImage', 'ProductWeight', 'ProductFasting', 'ProductBoycott', 'ProductTotalRate',
+                  'ProductDiscount', 'ProductAvailable', 'ExpiryDate', 'ModifiedBy', 'ModifiedDate', 'ProductPlace']
+
+    def get_ModifiedBy(self, obj):
+        user = obj.ModifiedBy
+        if hasattr(user, 'WorkerUserName'):
+            return user.WorkerUserName
+        elif hasattr(user, 'UserName'):
+            return user.UserName
+        return None
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    ProductCategory = serializers.CharField(source='ProductCategory.CategoryName', read_only=True)
+    ModifiedBy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['QRNumber', 'ProductName', 'ProductPrice', 'ProductCategory', 'ProductBrand', 'ProductDescription',
+                  'ProductImage', 'ProductWeight', 'ProductFasting', 'ProductBoycott',
+                  'ProductTotalRate', 'ProductDiscount', 'ProductAvailable', 'ExpiryDate',
+                  'ModifiedBy', 'ModifiedDate']
+
+    def get_ModifiedBy(self, obj):
+        user = obj.ModifiedBy
+        if hasattr(user, 'WorkerUserName'):
+            return user.WorkerUserName
+        elif hasattr(user, 'UserName'):
+            return user.UserName
+        return None
+
+    def update(self, instance, validated_data):
+        # تحديث الفئة إن وجدت
+        category_name = validated_data.pop('ProductCategory', None)
+        if category_name:
+            try:
+                category = Category.objects.get(CategoryName=category_name)
+                instance.ProductCategory = category
+            except Category.DoesNotExist:
+                raise serializers.ValidationError({"ProductCategory": "Category not found"})
+
+        # تحديث باقي الحقول
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        # تحديد المستخدم المعدّل
+        request = self.context.get('request')
+        user = request.user if request else None
+        user_role = self.context.get("user_role")
+
+        if user and user_role in ["worker", "admin"]:
+            content_type = ContentType.objects.get_for_model(user.__class__)
+            instance.modifier_content_type = content_type
+            instance.modifier_object_id = user.id
+
+        instance.save()
+        return instance
+#############################################################################
+
 
 
 ############################# Category #############################

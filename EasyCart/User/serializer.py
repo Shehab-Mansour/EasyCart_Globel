@@ -18,7 +18,9 @@ class NewClientSerializer(serializers.ModelSerializer):
     clientImage = serializers.ImageField(write_only=True,required=False,default='clientPhotos/default/clientImage.png')
     class Meta:
         model = client
-        fields = ['clientUserName', 'clientFirstName', 'clientLastName', 'clientEmail','clientBirthdate','clientPassword','clientImage']
+        fields = ['clientUserName', 'clientFirstName', 'clientLastName', 'clientEmail','clientBirthdate','clientPassword','clientImage','verification_code','is_verified']
+        # extra_kwargs = {'verification_code': {'write_only':True},'is_verified': {'write_only':True}}
+        # read_only_fields = ['is_verified','']
     def create(self, validated_data):
         password = validated_data.pop('clientPassword')
         validated_data['clientPassword'] = make_password(password)

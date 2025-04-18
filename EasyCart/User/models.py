@@ -18,6 +18,8 @@ class client(models.Model):
     clientPoints = models.IntegerField(null=False , blank=False ,default=0)
     clientImage = models.ImageField(upload_to=client_directory_path, default='clientPhotos/default/clientImage.png')
     IsClient = models.BooleanField(default=True)
+    verification_code = models.CharField(max_length=4, null=True, blank=True)
+    is_verified = models.BooleanField(default=False)
     def __str__(self):
         return self.clientUserName
 

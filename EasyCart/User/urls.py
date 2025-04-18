@@ -7,6 +7,8 @@ urlpatterns = [
     #API
     path('getclient/', views.getclient, name='getclient'),
     path('register/', views.register, name='register'),
+    path('verify/', views.verify, name='verify'),
+    path('delete/', views.deleteclient, name='verify'),
     path('login/', views.login, name='login'),
     path('logout/', views.logout, name='logout'),
     path('profile/', views.userdetail, name='userdetail'),
