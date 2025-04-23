@@ -1,8 +1,10 @@
 import uuid
-from datetime import timezone
+
 
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+
 from User.models import client
 from product.models import Product
 from django.db.models.signals import pre_save
@@ -148,7 +150,7 @@ class EasyCartVirtualCartItem(models.Model):
 class PurchasedCart(models.Model):
     cartId = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(client, on_delete=models.CASCADE)
-    createdAt = models.DateTimeField(auto_now_add=True)
+    createdAt = models.DateTimeField(default=timezone.now)
     totalAmount = models.FloatField()
     totalWeight = models.FloatField()
     totalQuantity = models.IntegerField()
@@ -163,7 +165,7 @@ class PurchasedCartItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, to_field='QRNumber')
     quantity = models.IntegerField(validators=[MinValueValidator(1)])
     priceAtPurchase = models.FloatField()
-    purchasedAt = models.DateTimeField(auto_now_add=True)
+    purchasedAt = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"{self.quantity}x {self.product.ProductName} in Purchased Cart"

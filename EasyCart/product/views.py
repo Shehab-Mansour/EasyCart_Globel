@@ -18,6 +18,13 @@ from rest_framework import status
 from .serializer import CategorySerializer
 from worker.permission import IsAdminUser, IsWorker, IsAdminOrWorker
 from User.models import client
+from collections import defaultdict
+from django.db.models import Sum, Q
+from django.utils import timezone
+from dateutil.relativedelta import relativedelta
+from django.db.models.functions import TruncMonth
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
 def products(request):
     return HttpResponse("product list page")
@@ -586,15 +593,22 @@ class CategoriesWithProductCountView(APIView):
 
         data = [
             {
-                "label": category.CategoryName,  # اسم الـ Category
-                "value": category.ProductCategory.count() ,# عدد المنتجات المرتبطة بها
-                # "pers":(category.ProductCategory.count()/products)*100,
-
+                "id": i,
+                "value": category.ProductCategory.count(),
+                "label": category.CategoryName
             }
-            for category in categories
+            for i, category in enumerate(categories)
         ]
-
-        return Response(data)
+        #
+        #
+        # pie_chart_data = {
+        #     'series': [
+        #         {
+        #             'data': data,
+        #         }
+        #     ]
+        # }
+        return Response(data,status=status.HTTP_200_OK)
 
 
 class CategorySalesGraphAPIView(APIView):
@@ -613,9 +627,117 @@ class CategorySalesGraphAPIView(APIView):
         result = []
         for item in data:
             result.append({
-                'x': item['month'].strftime('%Y-%m'),  # الشهر
-                'y': item['category_name'],            # الكاتيجوري
-                'amount': item['total_quantity']       # الكمية
+                'x': item['month'].strftime('%Y-%m'),
+                'y': item['category_name'],
+                'amount': item['total_quantity']
             })
 
         return Response(result)
+
+
+
+
+
+
+@csrf_exempt
+@api_view(['GET'])
+@permission_classes([IsAdminOrWorker])
+def sales_last_12_months_chart(request):
+    now = timezone.now()
+    last_year = now - relativedelta(months=12)
+
+    # احصل على المبيعات خلال آخر 12 شهر
+    sales = (
+        PurchasedCartItem.objects
+        .filter(purchasedAt__gte=last_year)
+        .annotate(month=TruncMonth('purchasedAt'))
+        .values('month')
+        .annotate(
+            total_sales=Sum(
+                ExpressionWrapper(
+                    F('quantity') * F('priceAtPurchase'),
+                    output_field=FloatField()
+                )
+            )
+        )
+        .order_by('month')
+    )
+
+    month_sales_map = {
+        item['month'].date().strftime('%b'): item['total_sales']
+        for item in sales
+    }
+
+    xAxis_labels = []
+    series_data = []
+    for i in range(11, -1, -1):
+        month_label = (now - relativedelta(months=i)).strftime('%b')
+        xAxis_labels.append(month_label)
+        series_data.append(month_sales_map.get(month_label, 0))
+
+    return Response({
+        'xAxis': [{'data': xAxis_labels}],
+        'series': [{'data': series_data}]
+    })
+
+
+@csrf_exempt
+@api_view(['GET'])
+@permission_classes([IsAdminOrWorker])
+def bar_chart_top_4_categories_last_4_months(request):
+    now = timezone.now()
+    four_months_ago = now - relativedelta(months=4)
+
+    category_sales = (
+        PurchasedCartItem.objects
+        .filter(purchasedAt__gte=four_months_ago)
+        .values(
+            category_id=F('product__ProductCategory_id'),
+            category_name=F('product__ProductCategory__CategoryName')
+        )
+        .annotate(total_sales=Sum('quantity'))
+        .order_by('-total_sales')[:4]
+    )
+
+    category_id_to_key = {item['category_id']: f"cat{i + 1}" for i, item in enumerate(category_sales)}
+    category_id_to_name = {f"cat{i + 1}": item['category_name'] for i, item in enumerate(category_sales)}
+
+    sales = (
+        PurchasedCartItem.objects
+        .filter(product__ProductCategory__id__in=category_id_to_key.keys(), purchasedAt__gte=four_months_ago)
+        .annotate(month=TruncMonth('purchasedAt'))
+        .values('product__ProductCategory__id', 'month')
+        .annotate(
+            total_sales=Sum('quantity'),
+            total_revenue=Sum(
+                ExpressionWrapper(F('quantity') * F('priceAtPurchase'), output_field=FloatField())
+            )
+        )
+        .order_by('month')
+    )
+
+    month_to_data = defaultdict(lambda: {key: 0 for key in category_id_to_key.values()})
+
+    for item in sales:
+        month_label = item['month'].strftime('%b')
+        category_id = item['product__ProductCategory__id']
+        key = category_id_to_key[category_id]
+        month_to_data[month_label][key] = item['total_revenue']
+
+    dataset = []
+    for i in range(3, -1, -1):
+        month = (now - relativedelta(months=i)).strftime('%b')
+        row = {'month': month}
+        row.update(month_to_data.get(month, {key: 0 for key in category_id_to_key.values()}))
+        dataset.append(row)
+
+    series = [
+        {'dataKey': key, 'label': category_id_to_name[key]}
+        for key in category_id_to_name
+    ]
+
+    return Response({
+        'dataset': dataset,
+        'xAxis': [{'scaleType': 'band', 'dataKey': 'month'}],
+        'series': series
+    })

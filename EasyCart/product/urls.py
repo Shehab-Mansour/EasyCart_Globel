@@ -1,8 +1,8 @@
 from django.urls import path , include,re_path
 from . import views
-from .views import CategoriesView, MyWishlistView, AllWishlistsView, UserWishlistView, StatisticsView, CommentsListView ,CategoriesWithProductCountView,CategorySalesGraphAPIView,ProductCategorySearchAPIView,SearchHistoryListAPIView
-
-
+from .views import CategoriesView, MyWishlistView, AllWishlistsView, UserWishlistView, StatisticsView, CommentsListView, \
+    CategoriesWithProductCountView, CategorySalesGraphAPIView, ProductCategorySearchAPIView, SearchHistoryListAPIView, \
+    bar_chart_top_4_categories_last_4_months, sales_last_12_months_chart
 
 urlpatterns = [
     # path('', views.products, name='product'),
@@ -23,8 +23,10 @@ urlpatterns = [
 
     path('statistics/', StatisticsView.as_view(), name='statistics'),
     path('statistics/feedback/', CommentsListView.as_view(), name='statistics'),
-    path('statistics/categories/', CategoriesWithProductCountView.as_view(), name='statistics'),
+    path('statistics/pie_chart/', CategoriesWithProductCountView.as_view(), name='statistics'),
     path('statistics/scatter/', CategorySalesGraphAPIView.as_view(), name='statistics'),
+    path('statistics/bar_chart/', bar_chart_top_4_categories_last_4_months, name='statistics'),
+    path('statistics/line_chart/', sales_last_12_months_chart, name='statistics'),
 
     path('search/', ProductCategorySearchAPIView.as_view(), name='search'),
     path('searchhistory/', SearchHistoryListAPIView.as_view(), name='search'),

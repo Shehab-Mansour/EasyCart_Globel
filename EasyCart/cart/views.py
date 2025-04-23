@@ -176,8 +176,7 @@ class EsyCartVirtualCartCheckIn(APIView):
         # print(EasyCartdata.cartId)
         user=generate_custom_jwt(EasyCart=EasyCartdata.cartId,user=cart.client,access_time=access_time ,refresh_time=refresh_time)
         if user:
-            update=EasyCart.objects.update(
-                cartId=EasyCartdata.cartId,
+            update = EasyCart.objects.filter(cartId=EasyCartdata.cartId).update(
                 lastUsedBy=cart.client,
                 cartStatus='in_use',
                 location=location,
