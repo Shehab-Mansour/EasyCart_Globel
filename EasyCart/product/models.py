@@ -33,7 +33,7 @@ class Product(models.Model):
     ProductFasting=models.BooleanField(default=False, null=True)#7
     ProductBoycott=models.BooleanField(default=False, null=True)#8
     NumberOfViews=models.IntegerField(default=0)#9
-    ProductPlace=models.CharField(max_length=12,unique=True)#10  #A1-5R-2-1 ()   #https://chatgpt.com/c/673c230a-e058-8011-b61d-b8f5231e014a
+    ProductPlace=models.CharField(max_length=25,unique=True)#10  #A1-5R-2-1 ()   #https://chatgpt.com/c/673c230a-e058-8011-b61d-b8f5231e014a
     AICode=models.CharField(max_length=12 ,default="code")#11
     ProductTotalRate=models.FloatField(validators=[MinValueValidator(0.0), MaxValueValidator(5.0)])#12
     ProductDiscount=models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100)], default=0)#13

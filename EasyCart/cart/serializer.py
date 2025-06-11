@@ -13,7 +13,7 @@ class ProductSerializer(serializers.ModelSerializer):
     ProductCategory = serializers.CharField(source='ProductCategory.CategoryName', read_only=True)
     class Meta:
         model = Product
-        fields = ['QRNumber','ProductName','ProductPrice','ProductDiscount','ProductCategory','ProductBrand','ProductImage','ProductWeight' ]
+        fields = ['QRNumber','ProductName','ProductPrice','ProductDiscount','ProductCategory','ProductBrand','ProductImage','ProductWeight','ProductPlace' ]
 
 
 class EasyCartSerializer(serializers.ModelSerializer):
